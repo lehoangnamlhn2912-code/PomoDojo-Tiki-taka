@@ -1,0 +1,11 @@
+{
+  "name": "PomoDojo",
+  "description": "Ứng dụng desktop PomoDojo kết hợp Pomodoro thích ứng, Edge-AI bảo vệ mắt, Acoustic Shield và hệ thống Blind Break không màn hình.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
