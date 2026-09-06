@@ -1,0 +1,75 @@
+{
+  "name": "eye-care-focus-ai",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Eye Care Focus AI desktop app",
+  "author": "Your Name",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "dev:web": "vite",
+    "electron-dev": "concurrently -k \"npm:dev:web\" \"wait-on tcp:5173 && npm run build:electron && npm run build:preload && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "dev:desktop": "npm run electron-dev",
+    "build:web": "vite build",
+    "build:electron": "esbuild electron/main.js --bundle --platform=node --format=cjs --outfile=dist-electron/main.cjs --external:electron",
+    "build:preload": "esbuild electron/preload.js --bundle --platform=node --format=cjs --outfile=dist-electron/preload.cjs --external:electron",
+    "build": "npm run build:web && npm run build:electron && npm run build:preload",
+    "preview": "vite preview",
+    "clean": "rimraf dist dist-electron release",
+    "dist": "npm run build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.eyecare.focusai",
+    "productName": "Eye Care Focus AI",
+    "executableName": "EyeCareFocusAI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Eye Care Focus AI"
+    }
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@mediapipe/tasks-vision": "^1.0.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "onnxruntime-web": "^1.27.0",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^10.0.4",
+    "cross-env": "^10.0.0",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.0",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.23.12",
+    "vite": "^6.2.3",
+    "wait-on": "^8.0.1"
+  }
+}

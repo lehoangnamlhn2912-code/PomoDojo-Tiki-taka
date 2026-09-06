@@ -1,0 +1,11 @@
+{
+  "name": "PomoDojo",
+  "description": "PomoDojo desktop application combining adaptive Pomodoro, Edge-AI eye guard, acoustic shield, and screen-free Blind Break body motion workouts.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
