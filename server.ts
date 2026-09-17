@@ -243,75 +243,135 @@ const FALLBACK_QUIZZES_BY_TOPIC: Record<string, { topicTitle: string; questions:
   }
 };
 
-// Endpoint: AI-Powered Fatigue & Focus Analytics Synthesis
+// Endpoint: AI-Powered Fatigue & Focus Analytics Synthesis (Real Telemetry & Ultra-Concise Advice)
 app.post("/api/fatigue/analyze", async (req, res) => {
   try {
     const {
-      fatigueScore = 42,
-      studyDurationMinutes = 120,
-      averageDistanceCm = 52,
-      closeDistanceAlerts = 4,
-      ambientNoiseDb = 48,
+      todayStats = {},
+      history7Days = [],
       streakDays = 14,
       cycleDay = 14,
       remainingLives = 4,
-      blindBreaksCompleted = 3,
-      history = [],
       additionalNotes = ""
     } = req.body;
 
-    const prompt = `
-You are the Biometric & Study Energy Optimization AI Expert for PomoDojo.
-Analyze the following user biometric metrics and study habits to provide a comprehensive analysis, chart statistics, and personalized recommendations:
+    const focusMinutes = typeof todayStats.focusMinutes === 'number' ? todayStats.focusMinutes : 0;
+    const avgDistanceCm = typeof todayStats.avgDistanceCm === 'number' ? todayStats.avgDistanceCm : null;
+    const dimEvents = typeof todayStats.dimEvents === 'number' ? todayStats.dimEvents : 0;
+    const avgNoiseDb = typeof todayStats.avgNoiseDb === 'number' ? todayStats.avgNoiseDb : null;
+    const noiseSpikes = typeof todayStats.noiseSpikes === 'number' ? todayStats.noiseSpikes : 0;
+    const eyeOscillationsPerSec = typeof todayStats.eyeOscillationsPerSec === 'number' ? todayStats.eyeOscillationsPerSec : 0;
+    const fatigueScore = typeof todayStats.fatigueScore === 'number' ? todayStats.fatigueScore : null;
+    const hasData = Boolean(todayStats.hasData && (focusMinutes > 0 || dimEvents > 0 || noiseSpikes > 0));
 
-[INPUT METRICS]:
-- Estimated initial fatigue score: ${fatigueScore}%
-- Continuous study duration: ${studyDurationMinutes} minutes
-- Average eye-to-screen distance: ${averageDistanceCm} cm (Safe standard: > 50cm)
-- Too-close proximity alerts (< 45cm): ${closeDistanceAlerts} times
-- Ambient environmental noise: ${ambientNoiseDb} dB
-- Study streak: ${streakDays} days
-- Day in current 30-day cycle: Day ${cycleDay}/30
-- Remaining Streak Protection Lives: ${remainingLives}/4 Lives
-- Screen-free Blind Break sessions completed: ${blindBreaksCompleted} sessions
+    // When no data has been recorded yet, strictly return null for scores (renders as --%)
+    // and do not make up numbers or premature advice!
+    if (!hasData) {
+      return res.json({
+        success: true,
+        data: {
+          fatigueIndex: null,
+          riskLevel: "No Data",
+          statusTitle: "No Data Recorded",
+          statusDescription: "No focus sessions recorded today yet. Start a session to track telemetry.",
+          aiAdvice: "No focus sessions recorded today yet. Start a session in the Focus tab to activate real-time biometric telemetry and AI advice.",
+          recommendedSessionMinutes: null,
+          recommendedBreakMinutes: null,
+          optimalTimeWindows: [],
+          keyInsights: [
+            "No focus sessions recorded today yet.",
+            "Biometric telemetry will be collected during your focus sessions."
+          ],
+          actionableRecommendations: [
+            {
+              category: "Vision",
+              title: "20-20-20 Vision Rule",
+              description: "Every 20 minutes, gaze at an object 6 meters (20 feet) away for 20 seconds to relax ciliary muscles.",
+              priority: "High"
+            },
+            {
+              category: "Posture",
+              title: "Safe Distance > 50cm",
+              description: "Adjust your seat so your eyes remain at least an arm's length (50cm) from the monitor.",
+              priority: "Medium"
+            }
+          ],
+          metricsBreakdown: {
+            eyeStrainScore: null,
+            postureDisruptionScore: null,
+            cognitiveLoadScore: null,
+            acousticStressScore: null
+          }
+        }
+      });
+    }
+
+    const recordedPastDays = (Array.isArray(history7Days) ? history7Days : []).filter(
+      (d: any) => d && d.hasData && !d.isToday
+    );
+    const validHistorySummary = recordedPastDays.length > 0
+      ? recordedPastDays.map((d: any) => `${d.dayLabel} (${d.date}): ${d.focusHours || 0}h focus, fatigue ${d.fatigueScore || 'N/A'}%`).join("; ")
+      : "No previous recorded sessions in the last 6 days.";
+
+    const prompt = `
+You are the Biometric & Study Ergonomics AI Specialist for PomoDojo.
+Analyze the user's REAL focus and vision telemetry measured today:
+
+[TODAY'S REAL METRICS]:
+- Focus study duration today: ${focusMinutes} minutes
+- Average eye-to-screen distance: ${avgDistanceCm !== null ? `${avgDistanceCm} cm` : "No webcam data"} (Ergonomic standard: >= 50cm)
+- Screen dimming events (forced dimming because eyes too close <40cm for >=10s): ${dimEvents} times
+- Average ambient environmental noise: ${avgNoiseDb !== null ? `${avgNoiseDb} dB` : "No mic data"}
+- Noise threshold spikes (>65dB): ${noiseSpikes} times
+- Eye micro-oscillations / saccades per second: ${eyeOscillationsPerSec} movements/sec (Normal: 0.5-1.5/s, Visual strain: >2.0/s)
+- Calculated Daily Fatigue Score: ${fatigueScore !== null ? `${fatigueScore}%` : "No active session"}
+- Has session data today: ${hasData ? "Yes" : "No"}
+- Study streak: ${streakDays} days (Day ${cycleDay}/30, ${remainingLives} shield lives remaining)
+- 7-Day actual recorded history: ${validHistorySummary}
 - Additional notes: ${additionalNotes || "None"}
 
-Provide an in-depth analysis and return pure JSON according to the schema. Ensure 7-day forecast data is logical, scientifically grounded, and constructive.
-All strings MUST be in natural, professional English.
+[STRICT USER REQUIREMENTS]:
+1. The AI advice (aiAdvice) MUST BE AS CONCISE AS POSSIBLE (maximum 1-2 short, punchy sentences, directly targeting the exact issues found, zero filler/fluff).
+2. ABSOLUTELY DO NOT FABRICATE OR HALLUCINATE metrics for days without data.
+3. statusTitle must be 2-3 words.
+4. statusDescription must be 1 concise sentence.
+5. keyInsights: exactly 2 short bullet points referencing the real numbers.
+6. actionableRecommendations: exactly 2 concise recommendations (1 sentence each).
+7. Return strictly valid JSON adhering to the schema.
 `;
 
     const config = {
-      systemInstruction: "You are an AI expert in ergonomics, vision conservation, and PomoDojo study energy psychology. Return pure JSON only.",
+      systemInstruction: "You are an expert in vision ergonomics and cognitive fatigue. Always return pure JSON. Follow the constraint of ultra-concise advice (1-2 sentences max). Never invent data for days without data.",
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
           fatigueIndex: { type: Type.NUMBER, description: "Composite fatigue index from 0 to 100" },
-          riskLevel: { type: Type.STRING, description: "Risk level: Optimal, Mild, Moderate, High, Critical" },
-          statusTitle: { type: Type.STRING, description: "Concise title describing energy state" },
-          statusDescription: { type: Type.STRING, description: "Detailed description of physiological and visual state" },
+          riskLevel: { type: Type.STRING, description: "Optimal, Moderate, Warning, or Critical" },
+          statusTitle: { type: Type.STRING, description: "2-3 word title describing energy state" },
+          statusDescription: { type: Type.STRING, description: "1 concise sentence on user state" },
+          aiAdvice: { type: Type.STRING, description: "Ultra-concise advice: 1-2 punchy sentences maximum" },
           recommendedSessionMinutes: { type: Type.NUMBER, description: "Recommended study session length (minutes)" },
           recommendedBreakMinutes: { type: Type.NUMBER, description: "Recommended screen-free Blind Break duration (minutes)" },
           optimalTimeWindows: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: "Peak focus time windows during the day"
+            description: "Peak focus time windows"
           },
-          attentionSpanAnalysis: { type: Type.STRING, description: "Analysis of attention rhythm and fatigue tipping points" },
           keyInsights: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: "3-4 key conclusions from the measured biometric data"
+            description: "2 short conclusions from real measured biometric data"
           },
           actionableRecommendations: {
             type: Type.ARRAY,
             items: {
               type: Type.OBJECT,
               properties: {
-                category: { type: Type.STRING, description: "Category: Vision, Posture, Acoustics, Recovery" },
+                category: { type: Type.STRING, description: "Vision, Posture, Acoustics, or Recovery" },
                 title: { type: Type.STRING, description: "Recommendation title" },
-                description: { type: Type.STRING, description: "Specific actionable guidance" },
-                priority: { type: Type.STRING, description: "Priority: High, Medium, Low" }
+                description: { type: Type.STRING, description: "1 concise sentence of guidance" },
+                priority: { type: Type.STRING, description: "High, Medium, Low" }
               },
               required: ["category", "title", "description", "priority"]
             }
@@ -320,42 +380,24 @@ All strings MUST be in natural, professional English.
             type: Type.OBJECT,
             properties: {
               eyeStrainScore: { type: Type.NUMBER, description: "Eye strain score (0-100)" },
-              postureDisruptionScore: { type: Type.NUMBER, description: "Posture disruption / forward head score (0-100)" },
+              postureDisruptionScore: { type: Type.NUMBER, description: "Posture disruption score (0-100)" },
               cognitiveLoadScore: { type: Type.NUMBER, description: "Cognitive load score (0-100)" },
               acousticStressScore: { type: Type.NUMBER, description: "Noise stress score (0-100)" }
             },
             required: ["eyeStrainScore", "postureDisruptionScore", "cognitiveLoadScore", "acousticStressScore"]
-          },
-          weeklyForecast: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                day: { type: Type.STRING, description: "Mon, Tue, Wed, Thu, Fri, Sat, Sun" },
-                focusHours: { type: Type.NUMBER, description: "Recommended daily deep work hours" },
-                fatigueScore: { type: Type.NUMBER, description: "Projected fatigue index (%)" },
-                readinessScore: { type: Type.NUMBER, description: "Study readiness score (%)" }
-              },
-              required: ["day", "focusHours", "fatigueScore", "readinessScore"]
-            },
-            description: "7-day forecast allocating optimal study hours and energy readiness"
-          },
-          mascotAdvice: { type: Type.STRING, description: "Warm, witty coaching advice from Eddy the Mascot" }
+          }
         },
         required: [
           "fatigueIndex",
           "riskLevel",
           "statusTitle",
           "statusDescription",
+          "aiAdvice",
           "recommendedSessionMinutes",
           "recommendedBreakMinutes",
-          "optimalTimeWindows",
-          "attentionSpanAnalysis",
           "keyInsights",
           "actionableRecommendations",
-          "metricsBreakdown",
-          "weeklyForecast",
-          "mascotAdvice"
+          "metricsBreakdown"
         ]
       }
     };
@@ -364,42 +406,69 @@ All strings MUST be in natural, professional English.
     try {
       resultData = await callGeminiWithFallback(prompt, config);
     } catch (llmErr) {
-      console.warn("Gemini offline/busy, generating intelligent heuristic analysis:", llmErr);
-      const computedFatigue = Math.min(95, Math.max(10, Math.round(fatigueScore + closeDistanceAlerts * 3 + (studyDurationMinutes > 90 ? 15 : 0))));
+      console.warn("Gemini offline/busy, generating intelligent heuristic analysis from real telemetry:", llmErr);
+      
+      const computedFatigue = hasData
+        ? (fatigueScore !== null 
+            ? fatigueScore 
+            : Math.min(85, Math.max(10, Math.round(15 + dimEvents * 8 + (avgNoiseDb && avgNoiseDb > 55 ? 15 : 0) + (focusMinutes > 60 ? 20 : 0)))))
+        : null;
+
+      let conciseAdvice = "Posture and screen distance are in good shape. Maintain regular screen-free breaks each cycle.";
+      if (!hasData) {
+        conciseAdvice = "No focus sessions recorded today yet. Start a session in the Focus tab to activate real-time biometric telemetry and AI advice.";
+      } else if (dimEvents > 0) {
+        conciseAdvice = `Screen dimming was triggered ${dimEvents} time(s) due to leaning too close (<40cm). Push your display back to at least 50cm and blink to hydrate your eyes.`;
+      } else if (noiseSpikes >= 2) {
+        conciseAdvice = `Detected ${noiseSpikes} loud ambient noise spikes. Enable the acoustic shield or wear noise-cancelling headphones to reduce auditory fatigue.`;
+      } else if (eyeOscillationsPerSec >= 2.0) {
+        conciseAdvice = `High eye oscillation frequency (${eyeOscillationsPerSec}/s) indicates ciliary muscle strain. Rest your eyes for 20 seconds following the 20-20-20 rule.`;
+      } else if (focusMinutes >= 60) {
+        conciseAdvice = `You have studied continuously for ${focusMinutes} minutes. Stand up, stretch, and focus on an object 6 meters away.`;
+      }
+
       resultData = {
         fatigueIndex: computedFatigue,
-        riskLevel: computedFatigue > 60 ? "Warning" : computedFatigue > 35 ? "Moderate" : "Optimal",
-        statusTitle: "Stable Energy Equilibrium",
-        statusDescription: `You have completed ${studyDurationMinutes} minutes of focused study with an average distance of ${averageDistanceCm}cm. 30-Day Cycle: Day ${cycleDay}/30 with ${streakDays} continuous days.`,
-        recommendedSessionMinutes: computedFatigue > 50 ? 20 : 25,
+        riskLevel: !hasData ? "No Data" : computedFatigue > 65 ? "Warning" : computedFatigue > 40 ? "Moderate" : "Optimal",
+        statusTitle: !hasData ? "No Data Recorded" : computedFatigue > 65 ? "Visual Strain Warning" : computedFatigue > 40 ? "Moderate Fatigue" : "Optimal Energy",
+        statusDescription: hasData 
+          ? `Recorded ${focusMinutes} focus minutes with average eye distance of ${avgDistanceCm || '--'}cm and sound level of ${avgNoiseDb || '--'}dB.`
+          : "No focus sessions recorded today yet. Start a session to track telemetry.",
+        aiAdvice: conciseAdvice,
+        recommendedSessionMinutes: hasData ? (computedFatigue > 50 ? 20 : 25) : 25,
         recommendedBreakMinutes: 5,
-        optimalTimeWindows: ["08:30 - 11:30 (Peak Cognitive Flow)", "14:30 - 16:30 (Revision & Creative Work)"],
-        attentionSpanAnalysis: "Focus remains sharp for the first 25 minutes, followed by micro-distractions if screen-free breaks are delayed.",
-        keyInsights: [
-          `Average screen distance (${averageDistanceCm}cm) is within the safe ergonomic range.`,
-          `Completing ${blindBreaksCompleted} Blind Break sessions restored approximately 40% of ocular accommodation capability.`,
-          `Current Cycle: Day ${cycleDay}/30 with all ${remainingLives} Streak Protection lives intact.`
+        optimalTimeWindows: ["08:30 - 11:30", "14:30 - 16:30"],
+        keyInsights: hasData ? [
+          avgDistanceCm !== null
+            ? `Average screen distance: ${avgDistanceCm}cm (${avgDistanceCm >= 50 ? 'Within safe ergonomic range' : 'Should be moved further back'}).`
+            : "No webcam telemetry recorded for eye distance.",
+          dimEvents > 0 
+            ? `Screen dimming triggered ${dimEvents} time(s) due to safe proximity violations.`
+            : `Average noise level: ${avgNoiseDb !== null ? `${avgNoiseDb}dB` : 'Not measured'}, ${noiseSpikes} noise spike(s) detected.`
+        ] : [
+          "No focus sessions recorded today yet.",
+          "Biometric telemetry will be collected during your focus sessions."
         ],
         actionableRecommendations: [
-          { category: "Vision", title: "Practice the 20-20-20 Rule", description: "Every 20 minutes, gaze at an object 20 feet (6m) away for 20 seconds to relax eye muscles.", priority: "High" },
-          { category: "Posture", title: "Maintain Distance > 50cm", description: "Position your chair so your eyes stay at least 50cm away from the display.", priority: "Medium" }
+          {
+            category: "Vision",
+            title: "20-20-20 Vision Rule",
+            description: "Every 20 minutes, gaze at an object 6 meters (20 feet) away for 20 seconds to relax ciliary muscles.",
+            priority: "High"
+          },
+          {
+            category: "Posture",
+            title: "Safe Distance > 50cm",
+            description: "Adjust your seat so your eyes remain at least an arm's length (50cm) from the monitor.",
+            priority: dimEvents > 0 ? "High" : "Medium"
+          }
         ],
         metricsBreakdown: {
-          eyeStrainScore: Math.min(100, closeDistanceAlerts * 10 + 20),
-          postureDisruptionScore: Math.max(10, 100 - averageDistanceCm),
-          cognitiveLoadScore: computedFatigue,
-          acousticStressScore: Math.max(15, ambientNoiseDb - 30)
-        },
-        weeklyForecast: [
-          { day: "Mon", focusHours: 3.5, fatigueScore: 35, readinessScore: 85 },
-          { day: "Tue", focusHours: 4.0, fatigueScore: 40, readinessScore: 80 },
-          { day: "Wed", focusHours: 3.0, fatigueScore: 45, readinessScore: 75 },
-          { day: "Thu", focusHours: 4.5, fatigueScore: 50, readinessScore: 70 },
-          { day: "Fri", focusHours: 3.5, fatigueScore: 42, readinessScore: 78 },
-          { day: "Sat", focusHours: 5.0, fatigueScore: 30, readinessScore: 90 },
-          { day: "Sun", focusHours: 2.0, fatigueScore: 20, readinessScore: 95 }
-        ],
-        mascotAdvice: `Eddy says: Keep that ${streakDays}-day streak shining! Remember to stand up, stretch your arms, and rest your eyes after every session!`
+          eyeStrainScore: hasData ? Math.min(100, Math.max(10, Math.round(dimEvents * 15 + (avgDistanceCm ? Math.max(0, 50 - avgDistanceCm) * 3 : 20)))) : null,
+          postureDisruptionScore: hasData ? Math.min(100, Math.max(10, Math.round(dimEvents * 12 + (avgDistanceCm && avgDistanceCm < 45 ? 30 : 15)))) : null,
+          cognitiveLoadScore: hasData ? Math.min(100, Math.max(10, Math.round(focusMinutes * 0.5 + 20))) : null,
+          acousticStressScore: hasData ? Math.min(100, Math.max(10, Math.round(noiseSpikes * 12 + (avgNoiseDb ? Math.max(0, avgNoiseDb - 45) * 2 : 15)))) : null
+        }
       };
     }
 

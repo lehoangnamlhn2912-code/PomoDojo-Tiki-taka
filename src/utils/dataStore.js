@@ -1,37 +1,7 @@
 export const INITIAL_QUIZ_BANK = [
   {
     id: 'q1',
-    question: "Why do sea otters hold hands when they sleep floating on water?",
-    topicName: "Cute Animals",
-    optionA: { text: "To keep from drifting apart in the current", action: "Raise both arms sideways (Lateral Raise)", requiredPose: "lateral_raise", keycode: "A" },
-    optionB: { text: "To preserve body heat during winter", action: "Lower into a deep squat (Squat)", requiredPose: "squat", keycode: "B" },
-    correctOption: 'A',
-    explanation: "Sea otters hold hands to form rafts while sleeping so ocean currents don't drift them away from their group.",
-    funFact: "They also have a small skin pouch under their armpits to store their favorite rock for cracking open shellfish!"
-  },
-  {
-    id: 'q2',
-    question: "Which of the following animals can sleep standing up, but only dreams when lying down?",
-    topicName: "Curious Science",
-    optionA: { text: "Horse", action: "Curl forearms to chest (Hammer Curl)", requiredPose: "hammer_curl", keycode: "A" },
-    optionB: { text: "Giraffe", action: "Raise both arms sideways (Lateral Raise)", requiredPose: "lateral_raise", keycode: "B" },
-    correctOption: 'A',
-    explanation: "Horses have a stay-apparatus tendon locking mechanism to snooze standing up, but they must lie down to enter deep REM dreaming sleep.",
-    funFact: "Horses only need about 2 to 3 hours of lying-down sleep per day to fully restore energy."
-  },
-  {
-    id: 'q3',
-    question: "What is made for someone who never sees it, bought by someone who doesn't use it, and used by someone who never knows it?",
-    topicName: "Clever Riddles",
-    optionA: { text: "A coffin", action: "Lower into a deep squat (Squat)", requiredPose: "squat", keycode: "A" },
-    optionB: { text: "A secret gift", action: "Curl forearms to chest (Hammer Curl)", requiredPose: "hammer_curl", keycode: "B" },
-    correctOption: 'A',
-    explanation: "A coffin: The maker sells it, the buyer doesn't use it for themselves, and the person inside never knows!",
-    funFact: "Light humor and physical movement stimulate brain endorphins, relieving visual fatigue instantly."
-  },
-  {
-    id: 'q4',
-    question: "The '20-20-20' eye rule suggests looking how far away after 20 minutes of screen time?",
+    question: "The '20-20-20' rule suggests looking how far away after 20 minutes of screen time?",
     topicName: "Vision Health",
     optionA: { text: "About 20 feet (6 meters) for 20 seconds", action: "Raise both arms sideways (Lateral Raise)", requiredPose: "lateral_raise", keycode: "A" },
     optionB: { text: "About 20 meters for 2 minutes", action: "Lower into a deep squat (Squat)", requiredPose: "squat", keycode: "B" },

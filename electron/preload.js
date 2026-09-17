@@ -1,30 +1,10 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  app: {
-    getName: () => ipcRenderer.invoke('app:get-name'),
-    getVersion: () => ipcRenderer.invoke('app:get-version')
-  },
-
-  shell: {
-    openExternal: (url) =>
-      ipcRenderer.invoke('shell:open-external', url)
-  },
-
-  screen: {
-    setDim: (enabled) => {
-      console.log(
-        '[Preload] screen.setDim:',
-        enabled
-      )
-
-      ipcRenderer.send(
-        'screen-dim',
-        Boolean(enabled)
-      )
-    }
-  },
-
-  platform: process.platform,
-  isDesktop: true
-})
+  getSystemInfo: () => ipcRenderer.invoke('app:get-system-info'),
+  minimize: () => ipcRenderer.invoke('app:minimize'),
+  maximize: () => ipcRenderer.invoke('app:maximize'),
+  close: () => ipcRenderer.invoke('app:close'),
+  isMaximized: () => ipcRenderer.invoke('app:is-maximized'),
+  showNotification: (payload) => ipcRenderer.invoke('app:show-notification', payload)
+});

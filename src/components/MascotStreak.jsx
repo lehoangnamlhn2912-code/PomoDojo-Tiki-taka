@@ -1,88 +1,9 @@
 import React from 'react';
-import { Flame, Shield, ShieldAlert, Heart, Sparkles, RefreshCw, AlertCircle, Calendar, FastForward, CheckCircle } from 'lucide-react';
+import { Flame, Shield, Heart, AlertCircle, Calendar, CheckCircle } from 'lucide-react';
 
-export const MascotStreak = ({ mascot, setMascot }) => {
+export const MascotStreak = ({ mascot }) => {
   const currentCycleDay = mascot.cycleDay || 1;
   const daysLeftInCycle = Math.max(0, 30 - currentCycleDay);
-
-  // Simulate missing study session / look at screen during break
-  const handleSimulateMissedBreak = () => {
-    if (mascot.remainingLives > 0) {
-      setMascot((prev) => ({
-        ...prev,
-        remainingLives: prev.remainingLives - 1,
-        energy: Math.max(10, prev.energy - 25),
-        statusMessage: `⚠️ You missed a study session! Streak shield absorbed the penalty. ${prev.remainingLives - 1}/4 Lives remaining in this 30-day cycle.`
-      }));
-    } else {
-      setMascot((prev) => ({
-        ...prev,
-        streakDays: 0,
-        energy: 20,
-        statusMessage: '❌ You ran out of all 4 shield lives! Streak has reset to 0. Wait until the 30-day cycle completes to replenish 4 lives.'
-      }));
-    }
-  };
-
-  // Simulate completing 1 study day (+1 Day in 30-day cycle)
-  const handleSimulateAdvanceOneDay = () => {
-    setMascot((prev) => {
-      const nextDay = (prev.cycleDay || 1) + 1;
-      const nextStreak = prev.streakDays + 1;
-      const nextEnergy = Math.min(100, prev.energy + 15);
-
-      // IF CYCLE REACHES OR EXCEEDS 30 DAYS -> AUTOMATIC RESET TO 4 LIVES
-      if (nextDay >= 30) {
-        return {
-          ...prev,
-          streakDays: nextStreak,
-          energy: 100,
-          cycleDay: 1, // Start new 30-day cycle
-          remainingLives: 4, // RESET TO 4 LIVES
-          totalDaysTracked: (prev.totalDaysTracked || prev.streakDays) + 1,
-          cycleStartDate: new Date().toISOString(),
-          lastResetDate: new Date().toISOString(),
-          statusMessage: '🎉 Congratulations! You completed a full 30-day cycle! System automatically replenished all 4/4 Streak Shield Lives.'
-        };
-      }
-
-      return {
-        ...prev,
-        cycleDay: nextDay,
-        streakDays: nextStreak,
-        energy: nextEnergy,
-        totalDaysTracked: (prev.totalDaysTracked || prev.streakDays) + 1,
-        statusMessage: `🎉 Completed study day ${nextDay}/30! Streak increased to ${nextStreak} days 🔥 (${30 - nextDay} days left until 4-lives reset).`
-      };
-    });
-  };
-
-  // Simulate fast-forwarding 30 days (Test 4-Lives Reset Mechanism)
-  const handleSimulateFastForward30Days = () => {
-    setMascot((prev) => ({
-      ...prev,
-      cycleDay: 1,
-      remainingLives: 4, // AUTO RESET TO 4 LIVES
-      energy: 100,
-      streakDays: prev.streakDays + 30,
-      totalDaysTracked: (prev.totalDaysTracked || 0) + 30,
-      cycleStartDate: new Date().toISOString(),
-      lastResetDate: new Date().toISOString(),
-      statusMessage: '⚡ FAST-FORWARDED 30 DAYS: System triggered recurring 30-day cycle reset, restoring all 4/4 Shield Lives!'
-    }));
-  };
-
-  // Manual reset for cycle and shield lives
-  const handleResetMonthShields = () => {
-    setMascot((prev) => ({
-      ...prev,
-      cycleDay: 1,
-      remainingLives: 4,
-      cycleStartDate: new Date().toISOString(),
-      lastResetDate: new Date().toISOString(),
-      statusMessage: '🛡️ Reset 30-day cycle and replenished 4 Streak Shield Lives!'
-    }));
-  };
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -200,7 +121,7 @@ export const MascotStreak = ({ mascot, setMascot }) => {
 
         </div>
 
-        {/* Right Column: 4-Life Shield & Interactive Testing (5 Cols) */}
+        {/* Right Column: 4-Life Shield & Streak Rules (5 Cols) */}
         <div className="md:col-span-5 flex flex-col space-y-6">
           
           {/* Monthly 4-Lives Shield Card */}
@@ -242,45 +163,27 @@ export const MascotStreak = ({ mascot, setMascot }) => {
             </div>
           </div>
 
-          {/* Interactive Simulation Panel */}
-          <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 space-y-3">
-            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Simulate Counter & 30-Day Cycle:</h4>
+          {/* Guidelines & Rules Card */}
+          <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 space-y-3.5">
+            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center space-x-2">
+              <CheckCircle className="w-4 h-4 text-emerald-400" />
+              <span>Streak Rules:</span>
+            </h4>
 
-            {/* Advance 1 Day */}
-            <button
-              onClick={handleSimulateAdvanceOneDay}
-              className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-2 cursor-pointer active:scale-95"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Advance +1 Day (+1 Streak, Cycle Day {currentCycleDay} → {currentCycleDay >= 30 ? 1 : currentCycleDay + 1})</span>
-            </button>
-
-            {/* Fast Forward 30 Days */}
-            <button
-              onClick={handleSimulateFastForward30Days}
-              className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center space-x-2 cursor-pointer active:scale-95"
-            >
-              <FastForward className="w-4 h-4" />
-              <span>Fast-Forward +30 Days (Trigger 4-Lives Automatic Reset)</span>
-            </button>
-
-            {/* Miss Break (-1 Life) */}
-            <button
-              onClick={handleSimulateMissedBreak}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 text-xs font-medium rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer active:scale-95"
-            >
-              <ShieldAlert className="w-4 h-4 text-amber-400" />
-              <span>Simulate: Missed Study Day (-1 Life)</span>
-            </button>
-
-            {/* Manual Reset */}
-            <button
-              onClick={handleResetMonthShields}
-              className="w-full py-2 text-slate-400 hover:text-slate-200 text-[11px] font-mono flex items-center justify-center space-x-1 cursor-pointer"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>Reset 30-Day Cycle & Replenish 4 Lives Now</span>
-            </button>
+            <ul className="space-y-2 text-xs text-slate-400 leading-relaxed">
+              <li className="flex items-start space-x-2">
+                <span className="text-blue-400">•</span>
+                <span>Complete scheduled study and blind break movement exercises to maintain your streak daily.</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="text-emerald-400">•</span>
+                <span>Each 30-day cycle grants exactly 4 protection lives that automatically absorb missed sessions.</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="text-amber-400">•</span>
+                <span>At the end of each 30-day window, your shield lives reset back to full 4 lives automatically.</span>
+              </li>
+            </ul>
           </div>
 
         </div>

@@ -206,30 +206,35 @@ export const PermissionModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in select-none">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative space-y-6 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-lg z-[1000] flex items-center justify-center p-4 animate-fade-in select-none">
+      <div className="bg-slate-900 border border-slate-700/90 rounded-2xl max-w-xl w-full p-6 shadow-2xl shadow-black/80 relative space-y-6 max-h-[90vh] overflow-y-auto">
         
         {/* Close Button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition cursor-pointer"
+          title="Close Setup"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Modal Header */}
         <div className="flex items-center space-x-3 border-b border-slate-800 pb-4">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 border border-blue-400/40 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
             <Sliders className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center space-x-2">
-              <span>Hardware Device Permissions</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">
-                100% Local
+            <div className="flex items-center space-x-2">
+              <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                Hardware Device Permissions
+              </h3>
+              <span className="text-[10px] font-mono px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30 font-semibold">
+                100% Local AI
               </span>
-            </h3>
-            <p className="text-xs text-slate-400">Connect directly to real physical WebCam & Microphone</p>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Welcome to PomoDojo! Connect camera and microphone to activate real-time protection.
+            </p>
           </div>
         </div>
 
@@ -264,8 +269,11 @@ export const PermissionModal = ({
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    Edge-AI computer vision algorithms analyze facial features from the camera in real time to calculate exact distance in cm.
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                    Powers <strong>Focus Mode</strong> (eye distance guard & 10s blackout warning) and <strong>Blind Break</strong> (MediaPipe 33-keypoints exercise pose quiz).
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Zero images or video are ever saved or uploaded to the cloud. All inference runs in browser WebAssembly.
                   </p>
                 </div>
               </div>
@@ -428,12 +436,6 @@ export const PermissionModal = ({
             )}
           </div>
 
-        </div>
-
-        {/* Security Reassurance Note */}
-        <div className="p-3 bg-emerald-950/30 border border-emerald-500/20 rounded-xl flex items-center space-x-2.5 text-xs text-emerald-300 font-mono">
-          <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-          <span>Zero-Data Guarantee: WebCam & Microphone streams process strictly in local RAM and are never transmitted to any external server.</span>
         </div>
 
         {/* Modal Action Buttons */}

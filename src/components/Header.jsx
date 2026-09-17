@@ -1,11 +1,10 @@
 import React from 'react';
-import { ShieldCheck, Zap, Volume2, Eye, Sliders, Camera, Mic } from 'lucide-react';
+import { Zap, Volume2, Eye, Sliders, Camera, Mic } from 'lucide-react';
 
 export const Header = ({
   activeTab,
   setActiveTab,
   mascot,
-  onOpenPrivacyModal,
   onOpenPermissionModal,
   cameraEnabled,
   micEnabled,
@@ -23,15 +22,10 @@ export const Header = ({
           P
         </div>
         <div>
-          <div className="flex items-center space-x-2">
-            <h1 className="text-base font-black tracking-wider text-slate-100 uppercase">
-              Pomo<span className="text-blue-400">Dojo</span>
-            </h1>
-            <span className="px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/30 text-blue-300 text-[10px] font-mono font-semibold rounded">
-              v1.0 Edge-AI
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400">Adaptive Pomodoro & Blind Break System</p>
+          <h1 className="text-base font-black tracking-wider text-slate-100 uppercase">
+            Pomo<span className="text-blue-400">Dojo</span>
+          </h1>
+          <p className="text-[11px] text-slate-400">Adaptive Pomodoro & Eye Care System</p>
         </div>
       </div>
 
@@ -70,15 +64,6 @@ export const Header = ({
 
       {/* Right Controls */}
       <div className="flex items-center space-x-3">
-        {/* Zero-Data Privacy Shield Button */}
-        <button
-          onClick={onOpenPrivacyModal}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-medium transition cursor-pointer"
-        >
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span className="hidden sm:inline">Zero-Data Shield</span>
-        </button>
-
         {/* Device Permissions Modal Trigger Button */}
         <button
           onClick={onOpenPermissionModal}

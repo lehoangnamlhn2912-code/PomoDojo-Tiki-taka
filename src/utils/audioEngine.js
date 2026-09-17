@@ -172,10 +172,16 @@ class AudioEngine {
     osc.stop(now + durationSec);
   }
 
-  // High-Clarity Text-To-Speech (English Default)
-  speakQuestion(text, onEnd, lang = 'en-US') {
+  // High-Clarity Text-To-Speech (Exclusively Female Voice, No Overlapping Streams)
+  speakQuestion(text, onEnd = null, lang = 'en-US') {
     this.stopSpeaking();
     if (!text || typeof text !== 'string') return;
+    
+    // Support flexible signature speakQuestion(text, 'en') or speakQuestion(text, onEnd, lang)
+    if (typeof onEnd === 'string') {
+      lang = onEnd;
+      onEnd = null;
+    }
 
     // Clean formatting characters to ensure smooth reading
     const cleanText = text
@@ -183,57 +189,89 @@ class AudioEngine {
       .replace(/["*#_~`]+/g, '')
       .trim();
 
-    // Priority 1: High-Clarity Audio Stream via Server Endpoint
-    try {
-      const ttsUrl = `/api/tts?text=${encodeURIComponent(cleanText.substring(0, 350))}&lang=${encodeURIComponent(lang)}`;
-      const audio = new Audio(ttsUrl);
-      this.currentAudio = audio;
+    if (!('speechSynthesis' in window)) return;
 
-      audio.onended = () => {
-        this.currentAudio = null;
-        if (onEnd) onEnd();
+    // Ensure all previous speech is stopped immediately
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.08; // Pleasant, clear female pitch
+    utterance.lang = lang || 'en-US';
+
+    const selectFemaleVoiceAndSpeak = () => {
+      const voices = window.speechSynthesis.getVoices() || [];
+
+      // List of names and tokens known to be male voices to strictly exclude
+      const isMaleVoice = (name = '') => {
+        return /david|mark|alex|daniel|oliver|george|male|fred|brian|tom|guy|lee|richard|james|john|paul|steve|michael/i.test(name);
       };
 
-      audio.onerror = (err) => {
-        console.warn('Backend TTS stream fallback to SpeechSynthesis:', err);
-        this.fallbackSpeechSynthesis(cleanText, onEnd, lang);
-      };
+      // Preferred female voices across Windows, Mac, Android, iOS, and Chrome
+      const femalePatterns = [
+        /female/i,
+        /samantha/i,
+        /zira/i,
+        /jenny/i,
+        /aria/i,
+        /victoria/i,
+        /karen/i,
+        /google us english/i,
+        /google uk english female/i,
+        /serena/i,
+        /susan/i,
+        /moira/i,
+        /tessa/i,
+        /fiona/i,
+        /ava/i,
+        /allison/i,
+        /natural/i
+      ];
 
-      audio.play().catch((playErr) => {
-        console.warn('Audio play failed (autoplay block or network), fallback to SpeechSynthesis:', playErr);
-        this.fallbackSpeechSynthesis(cleanText, onEnd, lang);
-      });
-      return;
-    } catch (e) {
-      console.warn('Error initiating audio stream:', e);
-      this.fallbackSpeechSynthesis(cleanText, onEnd, lang);
-    }
-  }
+      let chosenVoice = null;
 
-  // Fallback client-side SpeechSynthesis with English voice matching
-  fallbackSpeechSynthesis(text, onEnd, lang = 'en-US') {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
-      utterance.lang = lang || 'en-US';
+      // 1. First priority: Matches female voice pattern and NOT male
+      for (const pattern of femalePatterns) {
+        const found = voices.find((v) => pattern.test(v.name) && !isMaleVoice(v.name));
+        if (found) {
+          chosenVoice = found;
+          break;
+        }
+      }
 
-      const voices = window.speechSynthesis.getVoices();
-      const enVoice = voices.find(
-        (v) =>
-          v.lang === 'en-US' ||
-          v.lang === 'en_US' ||
-          v.lang.startsWith('en') ||
-          /google|natural|samantha|alex|daniel|oliver/i.test(v.name)
-      );
+      // 2. Second priority: English / local voice that is NOT male
+      if (!chosenVoice) {
+        chosenVoice = voices.find(
+          (v) => (v.lang.startsWith('en') || v.lang.startsWith('vi')) && !isMaleVoice(v.name)
+        );
+      }
 
-      if (enVoice) {
-        utterance.voice = enVoice;
+      // 3. Fallback: Any voice that is not explicitly male
+      if (!chosenVoice) {
+        chosenVoice = voices.find((v) => !isMaleVoice(v.name)) || voices[0];
+      }
+
+      if (chosenVoice) {
+        utterance.voice = chosenVoice;
       }
 
       if (onEnd) utterance.onend = onEnd;
       window.speechSynthesis.speak(utterance);
+    };
+
+    if (window.speechSynthesis.getVoices().length > 0) {
+      selectFemaleVoiceAndSpeak();
+    } else {
+      window.speechSynthesis.onvoiceschanged = () => {
+        selectFemaleVoiceAndSpeak();
+        window.speechSynthesis.onvoiceschanged = null;
+      };
+      // Fallback timeout in case onvoiceschanged does not fire
+      setTimeout(() => {
+        if (!window.speechSynthesis.speaking) {
+          selectFemaleVoiceAndSpeak();
+        }
+      }, 80);
     }
   }
 
@@ -246,7 +284,9 @@ class AudioEngine {
       this.currentAudio = null;
     }
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
     }
   }
 }

@@ -137,6 +137,9 @@ export function solvePnP({ landmarks, width, height }) {
   const pitchRatio = (distToChin - distToGlabella * 1.5) / Math.max(1, verticalFacePx);
   const pitchDeg = Math.round(pitchRatio * 60);
 
+  // Detect when user is bowing head to read document or write on desk
+  const isLookingDown = pitchDeg < -12 || (noseTip.y > ((leftEyePx.y + rightEyePx.y) / (2 * height) + 0.12));
+
   // Roll: Face tilt sideways
   const rollRad = Math.atan2(dy, dx);
   const rollDeg = Math.round(rollRad * (180 / Math.PI));
@@ -159,7 +162,8 @@ export function solvePnP({ landmarks, width, height }) {
     pose: {
       yaw: yawDeg,
       pitch: pitchDeg,
-      roll: rollDeg
+      roll: rollDeg,
+      isLookingDown: isLookingDown
     },
     ipdPixels: Number(ipdPixels.toFixed(1)),
     ear: {

@@ -34,9 +34,9 @@ export const Navigation = ({ activeTab, setActiveTab }) => {
     {
       id: 'analytics',
       label: 'Fatigue Analytics',
-      desc: 'AI Fatigue Metrics',
+      desc: 'Fatigue Metrics',
       icon: Activity,
-      badge: 'AI'
+      badge: 'Stats'
     }
   ];
 
