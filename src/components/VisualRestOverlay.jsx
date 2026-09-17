@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, Moon, Clock, ArrowRightLeft, Square, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine.js';
+import { desktopOverlayService } from '../services/desktopOverlayService.js';
 
 export const VisualRestOverlay = ({
   secondsLeft,
@@ -12,7 +13,16 @@ export const VisualRestOverlay = ({
 }) => {
   const [soundEnabled, setSoundEnabled] = useState(true);
 
-  // Play gentle relaxation chime on mount
+  // Kích hoạt làm tối 50% toàn màn hình OS khi bắt đầu nghỉ, và tự tắt khi hết giờ
+  useEffect(() => {
+    desktopOverlayService.setScreenDimming(true, 0.5);
+
+    return () => {
+      desktopOverlayService.setScreenDimming(false);
+    };
+  }, []);
+
+  // Phát âm thanh chuông thư giãn khi bước vào giờ nghỉ
   useEffect(() => {
     if (soundEnabled) {
       audioEngine.playBreathingGuideTone(220, 2);
@@ -28,9 +38,9 @@ export const VisualRestOverlay = ({
         WebkitBackdropFilter: 'brightness(0.50)'
       }}
     >
-      {/* Centered Resting Card */}
+      {/* Thẻ đếm ngược và nhắc nhở thị giác ở trung tâm */}
       <div className="bg-slate-950/90 border border-emerald-500/40 rounded-3xl p-8 max-w-lg w-full text-center space-y-6 shadow-2xl relative">
-        {/* Pulsing Eye Icon */}
+        {/* Biểu tượng ánh trăng dịu mắt */}
         <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
           <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
           <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/20">
@@ -38,7 +48,7 @@ export const VisualRestOverlay = ({
           </div>
         </div>
 
-        {/* Title and Cycle Status */}
+        {/* Tiêu đề & chu kỳ Pomodoro */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-center space-x-2">
             <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/30">
@@ -55,7 +65,7 @@ export const VisualRestOverlay = ({
           </p>
         </div>
 
-        {/* Big Countdown Timer */}
+        {/* Bộ đếm thời gian nghỉ còn lại */}
         <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 max-w-xs mx-auto">
           <div className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-semibold mb-1 flex items-center justify-center space-x-1.5">
             <Clock className="w-3.5 h-3.5 text-emerald-400" />
@@ -66,7 +76,7 @@ export const VisualRestOverlay = ({
           </div>
         </div>
 
-        {/* Control Buttons */}
+        {/* Các nút điều khiển: Đổi kiểu nghỉ hoặc Dừng phiên */}
         <div className="flex items-center justify-center gap-3 pt-2">
           <button
             onClick={onChangeBreakStyle}

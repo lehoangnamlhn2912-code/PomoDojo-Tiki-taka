@@ -1,33 +1,22 @@
 // electron/main.js
-
-const {
+var {
   app,
   BrowserWindow,
   ipcMain,
   screen,
   Notification
-} = require('electron');
-
-const path = require('path');
-
-let mainWindow = null;
-let overlayWindow = null;
-
-
-// ==========================================
-// OVERLAY WINDOW
-// ==========================================
-
+} = require("electron");
+var path = require("path");
+var mainWindow = null;
+var overlayWindow = null;
 function createOverlayWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.bounds;
-
   overlayWindow = new BrowserWindow({
     x: 0,
     y: 0,
     width,
     height,
-
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -36,20 +25,16 @@ function createOverlayWindow() {
     focusable: false,
     resizable: false,
     show: false,
-
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false
     }
   });
-
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-
+  overlayWindow.setAlwaysOnTop(true, "screen-saver");
   overlayWindow.setIgnoreMouseEvents(true, {
     forward: true
   });
-
   const overlayHtml = `
     <!DOCTYPE html>
     <html>
@@ -81,233 +66,148 @@ function createOverlayWindow() {
       <body></body>
     </html>
   `;
-
   overlayWindow.loadURL(
-    'data:text/html;charset=utf-8,' +
-    encodeURIComponent(overlayHtml)
+    "data:text/html;charset=utf-8," + encodeURIComponent(overlayHtml)
   );
-
-  screen.on('display-metrics-changed', () => {
+  screen.on("display-metrics-changed", () => {
     if (!overlayWindow || overlayWindow.isDestroyed()) {
       return;
     }
-
     const updatedDisplay = screen.getPrimaryDisplay();
-
     overlayWindow.setBounds(
       updatedDisplay.bounds
     );
   });
 }
-
-
-// ==========================================
-// MAIN WINDOW
-// ==========================================
-
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 850,
-
     minWidth: 900,
     minHeight: 650,
-
-    backgroundColor: '#030712',
-
-    title: 'PomoDojo - AI Focus & Eye Guard',
-
+    backgroundColor: "#030712",
+    title: "PomoDojo - AI Focus & Eye Guard",
     webPreferences: {
       // IMPORTANT:
       // package.json builds preload.js -> preload.cjs
       preload: path.join(
         __dirname,
-        'preload.cjs'
+        "preload.cjs"
       ),
-
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
     }
   });
-
   const isDev = !app.isPackaged;
-
   if (isDev) {
     mainWindow.loadURL(
-      'http://localhost:3000'
+      "http://localhost:3000"
     );
   } else {
     mainWindow.loadFile(
       path.join(
         __dirname,
-        '../dist/index.html'
+        "../dist/index.html"
       )
     );
   }
-
-  // Debug renderer loading
   mainWindow.webContents.on(
-    'did-fail-load',
+    "did-fail-load",
     (_event, errorCode, errorDescription) => {
       console.error(
-        '[Electron] Failed to load:',
+        "[Electron] Failed to load:",
         errorCode,
         errorDescription
       );
     }
   );
-
   mainWindow.webContents.on(
-    'console-message',
+    "console-message",
     (_event, level, message) => {
       console.log(
         `[Renderer ${level}] ${message}`
       );
     }
   );
-
-  mainWindow.on('closed', () => {
+  mainWindow.on("closed", () => {
     mainWindow = null;
-
-    if (
-      overlayWindow &&
-      !overlayWindow.isDestroyed()
-    ) {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
       overlayWindow.close();
     }
-
     overlayWindow = null;
   });
 }
-
-
-// ==========================================
-// IPC: SCREEN DIMMING
-// ==========================================
-
 ipcMain.on(
-  'set-screen-dimming',
+  "set-screen-dimming",
   (_event, payload = {}) => {
-    if (
-      !overlayWindow ||
-      overlayWindow.isDestroyed()
-    ) {
+    if (!overlayWindow || overlayWindow.isDestroyed()) {
       return;
     }
-
     const {
       isDimmed = false,
       opacity = 0.3
     } = payload;
-
     if (!isDimmed) {
       overlayWindow.hide();
       return;
     }
-
-    // Keep opacity in a safe range
     const safeOpacity = Math.max(
       0,
       Math.min(1, Number(opacity) || 0.3)
     );
-
-    overlayWindow.webContents
-      .executeJavaScript(`
+    overlayWindow.webContents.executeJavaScript(`
         document.body.style.backgroundColor =
           "rgba(0, 0, 0, ${safeOpacity})";
-      `)
-      .catch((error) => {
-        console.error(
-          '[Electron] Overlay update failed:',
-          error
-        );
-      });
-
+      `).catch((error) => {
+      console.error(
+        "[Electron] Overlay update failed:",
+        error
+      );
+    });
     overlayWindow.showInactive();
   }
 );
-
-
-// ==========================================
-// IPC: ALARM
-// ==========================================
-
 ipcMain.on(
-  'trigger-alarm',
+  "trigger-alarm",
   (_event, payload = {}) => {
     console.log(
-      '[Electron] Alarm triggered:',
+      "[Electron] Alarm triggered:",
       payload
     );
-
-    // Native notification as a fallback.
     if (Notification.isSupported()) {
       const notification = new Notification({
-        title:
-          payload.title ||
-          'PomoDojo',
-
-        body:
-          payload.body ||
-          'Time for a break!'
+        title: payload.title || "PomoDojo",
+        body: payload.body || "Time for a break!"
       });
-
       notification.show();
     }
   }
 );
-
-
-// ==========================================
-// IPC: SYSTEM STATUS
-// ==========================================
-
 ipcMain.handle(
-  'get-system-status',
+  "get-system-status",
   () => {
     return {
       platform: process.platform,
-
       arch: process.arch,
-
-      electronVersion:
-        process.versions.electron,
-
-      chromeVersion:
-        process.versions.chrome,
-
-      nodeVersion:
-        process.versions.node,
-
-      appVersion:
-        app.getVersion()
+      electronVersion: process.versions.electron,
+      chromeVersion: process.versions.chrome,
+      nodeVersion: process.versions.node,
+      appVersion: app.getVersion()
     };
   }
 );
-
-
-// ==========================================
-// APP LIFECYCLE
-// ==========================================
-
 app.whenReady().then(() => {
   createOverlayWindow();
-
   createMainWindow();
-
-  app.on('activate', () => {
-    if (
-      BrowserWindow.getAllWindows().length === 0
-    ) {
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
     }
   });
 });
-
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
     app.quit();
   }
 });

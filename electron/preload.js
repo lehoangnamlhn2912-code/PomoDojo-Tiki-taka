@@ -1,10 +1,28 @@
-import { contextBridge, ipcRenderer } from 'electron';
+// electron/preload.js
 
-contextBridge.exposeInMainWorld('electronAPI', {
-  getSystemInfo: () => ipcRenderer.invoke('app:get-system-info'),
-  minimize: () => ipcRenderer.invoke('app:minimize'),
-  maximize: () => ipcRenderer.invoke('app:maximize'),
-  close: () => ipcRenderer.invoke('app:close'),
-  isMaximized: () => ipcRenderer.invoke('app:is-maximized'),
-  showNotification: (payload) => ipcRenderer.invoke('app:show-notification', payload)
-});
+const {
+  contextBridge,
+  ipcRenderer
+} = require('electron');
+
+contextBridge.exposeInMainWorld(
+  'electronAPI',
+  {
+    setScreenDimming: (payload) =>
+      ipcRenderer.send(
+        'set-screen-dimming',
+        payload
+      ),
+
+    triggerAlarm: (payload) =>
+      ipcRenderer.send(
+        'trigger-alarm',
+        payload
+      ),
+
+    getSystemStatus: () =>
+      ipcRenderer.invoke(
+        'get-system-status'
+      )
+  }
+);

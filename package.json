@@ -1,59 +1,37 @@
 {
   "name": "eye-care-focus-ai",
-  "private": true,
   "version": "1.0.0",
+  "private": true,
+  "description": "Eye Care Focus AI - Electron + React + Vite",
+  "main": "dist-electron/main.cjs",
   "type": "module",
-  "main": "dist-electron/main.js",
+
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+
+    "build": "vite build",
+
+    "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+
+    "build:electron": "esbuild electron/main.js --bundle --platform=node --format=cjs --outfile=dist-electron/main.cjs --external:electron",
+
+    "build:preload": "esbuild electron/preload.js --bundle --platform=node --format=cjs --outfile=dist-electron/preload.cjs --external:electron",
+
+    "electron:dev": "concurrently -k \"npm run dev\" \"npm run electron:start\"",
+
+    "electron:start": "npm run build:electron && npm run build:preload && wait-on http://localhost:3000 && electron .",
+
+    "build:all": "npm run build && npm run build:server && npm run build:electron && npm run build:preload",
+
     "start": "node dist/server.cjs",
+
     "preview": "vite preview",
-    "clean": "rm -rf dist dist-electron server.js",
-    "lint": "echo 'No linting needed'",
-    "build:electron": "esbuild electron/main.js --bundle --platform=node --format=cjs --outfile=dist-electron/main.js --external:electron",
-    "build:preload": "esbuild electron/preload.js --bundle --platform=node --format=cjs --outfile=dist-electron/preload.js --external:electron",
-    "dist": "npm run electron:build",
-    "electron:build": "npm run build && npm run build:electron && npm run build:preload && electron-builder --win"
+
+    "clean": "rimraf dist dist-electron release",
+
+    "dist": "npm run build:all && electron-builder --win"
   },
-  "build": {
-    "appId": "com.eyecare.focusai",
-    "productName": "Eye Care Focus AI",
-    "executableName": "EyeCareFocusAI",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*"
-    ],
-    "win": {
-      "target": [
-        "nsis",
-        "portable",
-        "zip"
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Eye Care Focus AI"
-    },
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ]
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ]
-    }
-  },
+
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@mediapipe/tasks-vision": "^1.0.1",
@@ -68,14 +46,62 @@
     "react-dom": "^19.0.1",
     "vite": "^6.2.3"
   },
+
   "devDependencies": {
     "autoprefixer": "^10.4.21",
     "concurrently": "^10.0.4",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.25.0",
+    "rimraf": "^6.0.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.23.12",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "wait-on": "^8.0.3"
+  },
+
+  "build": {
+    "appId": "com.eyecare.focusai",
+    "productName": "Eye Care Focus AI",
+    "executableName": "EyeCareFocusAI",
+
+    "directories": {
+      "output": "release"
+    },
+
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+
+    "win": {
+      "target": [
+        "nsis",
+        "portable",
+        "zip"
+      ]
+    },
+
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Eye Care Focus AI"
+    },
+
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
   }
 }
