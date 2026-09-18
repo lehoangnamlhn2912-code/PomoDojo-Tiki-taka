@@ -12,12 +12,49 @@ import {
   RotateCcw,
   CheckCircle2,
   Activity,
-  ArrowRightLeft
+  ArrowRightLeft,
+  ChevronRight
 } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine.js';
 import { poseDetector } from '../services/poseDetector.js';
 
 const EXERCISES = [
+  {
+    id: 'overhead_reach',
+    name: 'Overhead Reach',
+    instruction: 'Raise both arms straight up towards the sky and stretch your spine.',
+    benefit: 'Decompresses spinal vertebrae and counters prolonged slouching'
+  },
+  {
+    id: 'neck_up',
+    name: 'Neck Extension (Look Up)',
+    instruction: 'Gently tilt your head back to look upward towards the ceiling.',
+    benefit: 'Directly counters forward head posture (Tech Neck)'
+  },
+  {
+    id: 'shoulder_shrug',
+    name: 'Shoulder Shrug',
+    instruction: 'Lift both shoulders up towards your ears, hold, then relax.',
+    benefit: 'Releases deep trapezius tension from keyboard and mouse use'
+  },
+  {
+    id: 'neck_tilt',
+    name: 'Neck Tilt (Ear to Shoulder)',
+    instruction: 'Tilt your head to the side, bringing your ear towards your shoulder.',
+    benefit: 'Lengthens tight lateral cervical muscles'
+  },
+  {
+    id: 'neck_turn',
+    name: 'Neck Turn (Look Left/Right)',
+    instruction: 'Slowly turn your head to look comfortably over your shoulder.',
+    benefit: 'Restores natural cervical rotation and eases neck stiffness'
+  },
+  {
+    id: 'arm_cross',
+    name: 'Chest Hug (Arms Crossed)',
+    instruction: 'Cross both arms across your chest as if giving yourself a hug.',
+    benefit: 'Expands the posterior shoulder blades and upper thoracic spine'
+  },
   {
     id: 'lateral_raise',
     name: 'Lateral Arm Raise',
@@ -25,16 +62,16 @@ const EXERCISES = [
     benefit: 'Relieves shoulder tension and opens upper chest'
   },
   {
-    id: 'squat',
-    name: 'Squat Hold',
-    instruction: 'Bend your knees into a gentle squat and hold steady.',
-    benefit: 'Activates leg muscles and boosts blood circulation'
-  },
-  {
     id: 'hammer_curl',
     name: 'Bicep Curl Hold',
     instruction: 'Bend your elbows upward bringing hands toward chest.',
     benefit: 'Engages arms and improves forearm posture'
+  },
+  {
+    id: 'squat',
+    name: 'Squat Hold',
+    instruction: 'Bend your knees into a gentle squat and hold steady.',
+    benefit: 'Activates lower body muscles and boosts blood circulation'
   }
 ];
 
@@ -44,6 +81,7 @@ export const PureMovement = ({
   cameraStream,
   setCameraStream,
   onOpenPermissionModal,
+  onFinishBreak,
   secondsLeft,
   currentCycle = 1,
   totalCycles = 4,
@@ -258,6 +296,17 @@ export const PureMovement = ({
               <div className="text-cyan-400 font-black text-sm">{formatTime(secondsLeft)}</div>
             </div>
           </div>
+
+          {onFinishBreak && (
+            <button
+              onClick={onFinishBreak}
+              className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center space-x-1.5 cursor-pointer shadow-md active:scale-95"
+              title="Finish break and return to focus"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Return to Focus</span>
+            </button>
+          )}
 
           <button
             onClick={onChangeBreakStyle}

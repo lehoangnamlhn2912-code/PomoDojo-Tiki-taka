@@ -106,9 +106,10 @@ export default function App() {
 
       if (currentCycle < totalCycles) {
         setCurrentCycle((prevCycle) => prevCycle + 1);
-        setSessionPhase('bio_reset');
-        setSecondsLeft(30);
-        setActiveTab('bio_reset');
+        // Bio-Reset is only for Cycle 1. From Cycle 2 onwards, return directly to Focus (Study)
+        setSessionPhase('study');
+        setSecondsLeft(studyMinutes * 60);
+        setActiveTab('focus');
         audioEngine.playSuccessSound();
       } else {
         // All cycles completed!
@@ -130,6 +131,26 @@ export default function App() {
     setBreakStyle(null);
     setIsBreakChoiceOpen(false);
     setActiveTab('bio_reset');
+  };
+
+  // Finish Break (either naturally or manually) -> advance directly to next cycle's Study phase (No bio_reset in cycles 2+)
+  const handleFinishBreak = () => {
+    setIsBreakChoiceOpen(false);
+    setBreakStyle(null);
+
+    if (currentCycle < totalCycles) {
+      setCurrentCycle((prevCycle) => prevCycle + 1);
+      setSessionPhase('study');
+      setSecondsLeft(studyMinutes * 60);
+      setActiveTab('focus');
+      audioEngine.playSuccessSound();
+    } else {
+      // All cycles completed!
+      setIsSessionActive(false);
+      setSessionPhase('completed');
+      setActiveTab('focus');
+      audioEngine.playSuccessSound();
+    }
   };
 
   // Called when 30s Bio-Reset finishes (either via countdown or skip button)
@@ -303,7 +324,7 @@ export default function App() {
           <BlindBreak
             mascot={mascot}
             setMascot={setMascot}
-            onFinishBreak={() => setActiveTab('focus')}
+            onFinishBreak={isSessionActive && sessionPhase === 'break' ? handleFinishBreak : () => setActiveTab('focus')}
             cameraEnabled={cameraEnabled}
             setCameraEnabled={setCameraEnabled}
             cameraStream={cameraStream}
@@ -328,6 +349,7 @@ export default function App() {
             cameraStream={cameraStream}
             setCameraStream={setCameraStream}
             onOpenPermissionModal={() => setIsPermissionModalOpen(true)}
+            onFinishBreak={isSessionActive && sessionPhase === 'break' ? handleFinishBreak : () => setActiveTab('focus')}
             secondsLeft={secondsLeft}
             currentCycle={currentCycle}
             totalCycles={totalCycles}

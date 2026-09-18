@@ -35,51 +35,49 @@ import { poseDetector } from '../services/poseDetector.js';
 const QUESTION_SETS_STORAGE_KEY = 'edumotion_question_sets_v2';
 const ACTIVE_SET_ID_STORAGE_KEY = 'edumotion_active_set_id_v2';
 
-const DEFAULT_QUESTION_SETS = [
-  {
-    id: 'set_default_1',
-    title: 'Vision & Focus Workout',
-    questions: [
-      {
-        id: 'q_default_1',
-        question: "The '20-20-20' rule suggests looking how far away after 20 minutes of screen time?",
-        options: [
-          {
-            id: 'opt_1',
-            letter: 'A',
-            text: 'About 20 feet (6 meters) for 20 seconds',
-            action: 'Lateral Arm Raise',
-            requiredPose: 'lateral_raise',
-            isCorrect: true
-          },
-          {
-            id: 'opt_2',
-            letter: 'B',
-            text: 'About 20 meters for 2 minutes',
-            action: 'Squat Hold',
-            requiredPose: 'squat',
-            isCorrect: false
-          }
-        ]
-      }
-    ]
-  }
+export const POSE_LABELS = {
+  overhead_reach: 'Overhead Reach (Hands Up)',
+  neck_up: 'Neck Extension (Look Up)',
+  shoulder_shrug: 'Shoulder Shrug (Lift to Ears)',
+  neck_tilt: 'Neck Tilt (Ear to Shoulder)',
+  neck_turn: 'Neck Turn (Look Left/Right)',
+  arm_cross: 'Chest Hug (Arms Crossed)',
+  lateral_raise: 'Lateral Arm Raise',
+  hammer_curl: 'Bicep Curl Hold',
+  squat: 'Squat Hold',
+  none: 'Tap / Click to answer'
+};
+
+export const AVAILABLE_POSES = [
+  { id: 'overhead_reach', label: 'Overhead Reach (Hands Up - Great for Desks & Wheelchairs)' },
+  { id: 'neck_up', label: 'Neck Extension (Look Up - Counters Tech-Neck)' },
+  { id: 'shoulder_shrug', label: 'Shoulder Shrug (Lift to Ears - Relieves Trapezius)' },
+  { id: 'neck_tilt', label: 'Neck Tilt (Ear to Shoulder)' },
+  { id: 'neck_turn', label: 'Neck Turn (Look Left/Right)' },
+  { id: 'arm_cross', label: 'Chest Hug (Arms Crossed)' },
+  { id: 'lateral_raise', label: 'Lateral Arm Raise' },
+  { id: 'hammer_curl', label: 'Bicep Curl Hold' },
+  { id: 'squat', label: 'Squat Hold' },
+  { id: 'none', label: 'Tap / Click to answer' }
 ];
 
-// Load question sets from localStorage or fall back to DEFAULT_QUESTION_SETS
+const DEFAULT_QUESTION_SETS = [];
+
+// Load question sets from localStorage, excluding legacy default sets
 const getStoredQuestionSets = () => {
   try {
     const saved = localStorage.getItem(QUESTION_SETS_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+      if (Array.isArray(parsed)) {
+        const userSets = parsed.filter((s) => s.id !== 'set_default_1');
+        return userSets;
       }
     }
   } catch (err) {
     console.warn('Could not load question sets from storage:', err);
   }
-  return DEFAULT_QUESTION_SETS;
+  return [];
 };
 
 const getStoredActiveSetId = (sets) => {
@@ -91,7 +89,7 @@ const getStoredActiveSetId = (sets) => {
   } catch (err) {
     console.warn('Could not load active set id:', err);
   }
-  return sets[0]?.id || DEFAULT_QUESTION_SETS[0].id;
+  return sets[0]?.id || null;
 };
 
 export const BlindBreak = ({
@@ -118,6 +116,7 @@ export const BlindBreak = ({
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
   const [isAnswerRevealed, setIsAnswerRevealed] = useState(false);
+  const [autoAdvanceCountdown, setAutoAdvanceCountdown] = useState(5);
   const [speechEnabled, setSpeechEnabled] = useState(true);
   const [isAllQuizzesDone, setIsAllQuizzesDone] = useState(false);
 
@@ -144,18 +143,19 @@ export const BlindBreak = ({
   const animFrameRef = useRef(null);
   const poseHoldTrackerRef = useRef({ pose: null, startTime: 0 });
   const lastSpokenQuizIdRef = useRef(null);
+  const autoAdvanceTimerRef = useRef(null);
 
   // Find active set & active question
   const activeSet =
     questionSets.find((s) => s.id === activeSetId) ||
     questionSets[0] ||
-    DEFAULT_QUESTION_SETS[0];
+    null;
 
-  const questionsList = activeSet.questions || [];
+  const questionsList = activeSet?.questions || [];
   const currentQuiz =
     questionsList[currentQuizIndex] ||
     questionsList[0] ||
-    DEFAULT_QUESTION_SETS[0].questions[0];
+    null;
 
   // Persist question sets to localStorage
   const saveQuestionSets = (newSets, newActiveId = null) => {
@@ -407,6 +407,12 @@ export const BlindBreak = ({
   };
 
   const handleNextQuestion = () => {
+    if (autoAdvanceTimerRef.current) {
+      clearInterval(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+    setAutoAdvanceCountdown(5);
+
     if (currentQuizIndex < questionsList.length - 1) {
       setCurrentQuizIndex((prev) => prev + 1);
       setSelectedOption(null);
@@ -418,6 +424,38 @@ export const BlindBreak = ({
       audioEngine.stopSpeaking();
     }
   };
+
+  // Auto-advance to next question 5 seconds after answer is revealed
+  useEffect(() => {
+    if (!isAnswerRevealed || isAllQuizzesDone) {
+      setAutoAdvanceCountdown(5);
+      if (autoAdvanceTimerRef.current) {
+        clearInterval(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+      return;
+    }
+
+    setAutoAdvanceCountdown(5);
+    autoAdvanceTimerRef.current = setInterval(() => {
+      setAutoAdvanceCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(autoAdvanceTimerRef.current);
+          autoAdvanceTimerRef.current = null;
+          handleNextQuestion();
+          return 5;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (autoAdvanceTimerRef.current) {
+        clearInterval(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+    };
+  }, [isAnswerRevealed, currentQuizIndex, isAllQuizzesDone, questionsList.length]);
 
   // ----------------------------------------------------
   // QUESTION SET CREATOR LOGIC (Prompt-Free, Square + Box, Right + for Next Question)
@@ -437,8 +475,8 @@ export const BlindBreak = ({
       id: `q_${Date.now()}_1`,
       question: '',
       options: [
-        { id: `opt_${Date.now()}_1`, letter: 'A', text: '', isCorrect: true, requiredPose: 'lateral_raise', action: 'Lateral Arm Raise' },
-        { id: `opt_${Date.now()}_2`, letter: 'B', text: '', isCorrect: false, requiredPose: 'squat', action: 'Squat Hold' }
+        { id: `opt_${Date.now()}_1`, letter: 'A', text: '', isCorrect: true, requiredPose: 'overhead_reach', action: POSE_LABELS.overhead_reach },
+        { id: `opt_${Date.now()}_2`, letter: 'B', text: '', isCorrect: false, requiredPose: 'neck_up', action: POSE_LABELS.neck_up }
       ]
     };
     setBuilderQuestions([firstQ]);
@@ -495,18 +533,12 @@ export const BlindBreak = ({
 
   // Update pose
   const handleUpdateOptionPose = (optIndex, poseVal) => {
-    const poseLabels = {
-      lateral_raise: 'Lateral Arm Raise',
-      squat: 'Squat Hold',
-      hammer_curl: 'Bicep Curl',
-      none: 'Tap / Click to answer'
-    };
     setBuilderQuestions((prev) =>
       prev.map((q, qIdx) => {
         if (qIdx !== builderActiveQIndex) return q;
         const newOpts = q.options.map((opt, oIdx) =>
           oIdx === optIndex
-            ? { ...opt, requiredPose: poseVal, action: poseLabels[poseVal] || 'Tap / Click to answer' }
+            ? { ...opt, requiredPose: poseVal, action: POSE_LABELS[poseVal] || 'Tap / Click to answer' }
             : opt
         );
         return { ...q, options: newOpts };
@@ -517,13 +549,17 @@ export const BlindBreak = ({
   // Add answer directly underneath current answers (+ button below)
   const handleAddOptionBelow = () => {
     if (!editorQ) return;
-    const defaultPoses = ['lateral_raise', 'squat', 'hammer_curl', 'none'];
-    const poseLabels = {
-      lateral_raise: 'Lateral Arm Raise',
-      squat: 'Squat Hold',
-      hammer_curl: 'Bicep Curl',
-      none: 'Tap / Click to answer'
-    };
+    const defaultPoses = [
+      'overhead_reach',
+      'neck_up',
+      'shoulder_shrug',
+      'neck_tilt',
+      'neck_turn',
+      'arm_cross',
+      'lateral_raise',
+      'hammer_curl',
+      'squat'
+    ];
     const nextPose = defaultPoses[editorQ.options.length % defaultPoses.length];
     const newLetter = String.fromCharCode(65 + editorQ.options.length);
 
@@ -533,7 +569,7 @@ export const BlindBreak = ({
       text: '',
       isCorrect: false,
       requiredPose: nextPose,
-      action: poseLabels[nextPose]
+      action: POSE_LABELS[nextPose] || 'Tap / Click to answer'
     };
 
     setBuilderQuestions((prev) =>
@@ -607,8 +643,8 @@ export const BlindBreak = ({
       id: `q_${Date.now()}_${builderQuestions.length + 1}`,
       question: '',
       options: [
-        { id: `opt_${Date.now()}_1`, letter: 'A', text: '', isCorrect: true, requiredPose: 'lateral_raise', action: 'Lateral Arm Raise' },
-        { id: `opt_${Date.now()}_2`, letter: 'B', text: '', isCorrect: false, requiredPose: 'squat', action: 'Squat Hold' }
+        { id: `opt_${Date.now()}_1`, letter: 'A', text: '', isCorrect: true, requiredPose: 'shoulder_shrug', action: POSE_LABELS.shoulder_shrug },
+        { id: `opt_${Date.now()}_2`, letter: 'B', text: '', isCorrect: false, requiredPose: 'arm_cross', action: POSE_LABELS.arm_cross }
       ]
     };
 
@@ -772,6 +808,51 @@ export const BlindBreak = ({
               <RotateCcw className="w-4 h-4" />
               <span>Review Question Set Again</span>
             </button>
+
+            {onFinishBreak && (
+              <button
+                onClick={onFinishBreak}
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center space-x-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+              >
+                <span>{isSessionActive && currentCycle < totalCycles ? `Start Cycle ${currentCycle + 1} Focus Now` : 'Return to Focus'}</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      ) : !activeSet || questionsList.length === 0 ? (
+        <div className="bg-slate-950 p-8 sm:p-12 rounded-3xl border border-slate-800 text-center space-y-6 shadow-2xl">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+            <BookOpen className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2 max-w-md mx-auto">
+            <h3 className="text-xl font-black text-slate-100">
+              No Question Sets Available
+            </h3>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Create your own custom question set to review knowledge and answer via physical movements, or switch to other break styles.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={handleOpenCreateSetModal}
+              className="px-5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center space-x-2 cursor-pointer transform active:scale-95"
+            >
+              <Plus className="w-4 h-4 text-white" />
+              <span>Create New Set</span>
+            </button>
+
+            {onChangeBreakStyle && (
+              <button
+                onClick={onChangeBreakStyle}
+                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white font-bold text-xs rounded-xl transition flex items-center space-x-2 cursor-pointer"
+              >
+                <ArrowRightLeft className="w-4 h-4 text-emerald-400" />
+                <span>Switch to Pure Movement</span>
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -1098,18 +1179,28 @@ export const BlindBreak = ({
                     </span>
                   </div>
 
-                  <button
-                    onClick={handleNextQuestion}
-                    className="mt-2 w-full py-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 cursor-pointer active:scale-98"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>
-                      {currentQuizIndex < questionsList.length - 1
-                        ? `Next Question (${currentQuizIndex + 2} of ${questionsList.length})`
-                        : 'Finish Questions (Rest Your Eyes)'}
-                    </span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                  {/* 5-Second Auto-Advance Countdown Bar & Button */}
+                  <div className="mt-2 space-y-2">
+                    <div className="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-emerald-400 to-teal-400 h-full transition-all duration-1000 ease-linear rounded-full"
+                        style={{ width: `${Math.max(0, Math.min(100, ((5 - autoAdvanceCountdown) / 5) * 100))}%` }}
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleNextQuestion}
+                      className="w-full py-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs rounded-xl transition shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 cursor-pointer active:scale-98"
+                    >
+                      <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '4s' }} />
+                      <span>
+                        {currentQuizIndex < questionsList.length - 1
+                          ? `Next question in ${autoAdvanceCountdown}s • (or click to advance)`
+                          : `Finish in ${autoAdvanceCountdown}s • (or click to rest eyes)`}
+                      </span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1360,12 +1451,13 @@ export const BlindBreak = ({
                                 <select
                                   value={opt.requiredPose || 'none'}
                                   onChange={(e) => handleUpdateOptionPose(oIdx, e.target.value)}
-                                  className="bg-slate-900 border border-slate-700 text-indigo-300 text-xs rounded px-2 py-1 font-mono focus:outline-none"
+                                  className="bg-slate-900 border border-slate-700 text-indigo-300 text-xs rounded px-2 py-1 font-mono focus:outline-none max-w-[220px]"
                                 >
-                                  <option value="lateral_raise">Lateral Arm Raise</option>
-                                  <option value="squat">Squat Hold</option>
-                                  <option value="hammer_curl">Bicep Curl</option>
-                                  <option value="none">Tap / Click Only</option>
+                                  {AVAILABLE_POSES.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.label}
+                                    </option>
+                                  ))}
                                 </select>
                               </div>
                             </div>

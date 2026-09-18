@@ -472,9 +472,6 @@ export const FocusMode = ({
                 {isSessionActive && isSessionPaused && (
                   <span className="text-amber-400">Paused • Cycle {currentCycle} / {totalCycles}</span>
                 )}
-                {!isSessionActive && sessionPhase !== 'completed' && (
-                  <span className="text-slate-400">Ready to Start • {totalCycles} Cycles (30s reset + {studyMinutes}m study + {breakMinutes}m break / cycle)</span>
-                )}
               </div>
 
               {/* Notice when user visits Focus tab while in Break Phase */}
