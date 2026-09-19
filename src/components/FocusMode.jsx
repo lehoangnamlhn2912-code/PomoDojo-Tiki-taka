@@ -89,6 +89,7 @@ export const FocusMode = ({
   // Audio Spectrum Frequency Data for Real Noise Meter Visualizer
   const [freqBars, setFreqBars] = useState(new Array(16).fill(10));
   const [peakNoiseDb, setPeakNoiseDb] = useState(0);
+  const [simulatedNoiseDb, setSimulatedNoiseDb] = useState(null);
 
   // Video element ref for Real Physical WebCam
   const videoRef = useRef(null);
@@ -111,6 +112,11 @@ export const FocusMode = ({
 
   const latestLookingDownRef = useRef(eyeData.pose?.isLookingDown);
   latestLookingDownRef.current = eyeData.pose?.isLookingDown;
+
+  const latestMeasuredNoiseDbRef = useRef(noiseDb);
+  latestMeasuredNoiseDbRef.current = noiseDb;
+
+  const focusNoiseRampDoneRef = useRef(false);
 
   // Sync eye distance cm estimate to parent App throttled (no 60fps re-render loops)
   useEffect(() => {
@@ -237,22 +243,21 @@ export const FocusMode = ({
     if (isMonitoring) {
       checkInterval = setInterval(() => {
         const curDist = latestEyeDistanceRef.current;
-        const curStatus = latestEyeStatusRef.current;
-        const isTooClose = curDist < 40 || curStatus === 'danger';
+        const isTooClose = curDist < 30;
 
         if (isTooClose) {
           setTooCloseSeconds((prev) => {
             const next = prev + 1;
             if (next >= 10 && !isDimmed) {
               setIsDimmed(true);
-              setDimHoldSeconds(15);
+              setDimHoldSeconds(5);
               audioEngine.playWarningChime();
               telemetryStore.recordDimEvent();
             }
             return next;
           });
         } else {
-          if (curDist >= 48 || curStatus === 'safe') {
+          if (curDist >= 38) {
             setTooCloseSeconds((prev) => (prev !== 0 ? 0 : prev));
           }
         }
@@ -266,7 +271,7 @@ export const FocusMode = ({
     };
   }, [cameraEnabled, isSessionActive, sessionPhase, isSessionPaused, isDimmed, setIsDimmed, setDimHoldSeconds]);
 
-  // Continuous 15-second hold timer when dimmed
+  // Continuous 5-second hold timer when dimmed
   useEffect(() => {
     let holdInterval;
     if (isDimmed && dimHoldSeconds > 0) {
@@ -275,12 +280,12 @@ export const FocusMode = ({
           if (prev <= 1) {
             const curDist = latestEyeDistanceRef.current;
             const isLookingDown = latestLookingDownRef.current;
-            if (curDist >= 45 || isLookingDown) {
+            if (curDist >= 35 || isLookingDown) {
               setIsDimmed(false);
               setTooCloseSeconds(0);
               return 0;
             } else {
-              return 15;
+              return 5;
             }
           }
           return prev - 1;
@@ -301,11 +306,59 @@ export const FocusMode = ({
       ? ((50 - eyeDistanceCm) / 20) * 0.4
       : 0;
 
-  // Auto-trigger Acoustic Noise Masking if ambient noise exceeds 65dB during focus/study phase
+  const isFocusPhase =
+    isSessionActive && (sessionPhase === 'study' || sessionPhase === 'focus');
+  const isFocusPhaseActive =
+    isFocusPhase && !isSessionPaused;
+
+  useEffect(() => {
+    let rampInterval;
+
+    if (!isFocusPhase) {
+      focusNoiseRampDoneRef.current = false;
+      setSimulatedNoiseDb(null);
+      return;
+    }
+
+    if (!isFocusPhaseActive || focusNoiseRampDoneRef.current) {
+      return;
+    }
+
+    const startedAt = Date.now();
+    setSimulatedNoiseDb(40);
+
+    rampInterval = setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+
+      if (elapsed <= 5000) {
+        const progress = elapsed / 5000;
+        setSimulatedNoiseDb(Math.round(40 + (65 - 40) * progress));
+        return;
+      }
+
+      if (elapsed <= 8000) {
+        const progress = (elapsed - 5000) / 3000;
+        const realNoiseDb = latestMeasuredNoiseDbRef.current ?? 0;
+        setSimulatedNoiseDb(Math.round(65 + (realNoiseDb - 65) * progress));
+        return;
+      }
+
+      focusNoiseRampDoneRef.current = true;
+      setSimulatedNoiseDb(null);
+      clearInterval(rampInterval);
+    }, 100);
+
+    return () => {
+      if (rampInterval) clearInterval(rampInterval);
+    };
+  }, [isFocusPhase, isFocusPhaseActive]);
+
+  const effectiveNoiseDb = simulatedNoiseDb ?? noiseDb;
+
+  // Auto-trigger Acoustic Noise Masking if ambient noise reaches 65dB during focus/study phase
   const lastNoiseSpikeTimeRef = useRef(0);
   useEffect(() => {
-    const isFocusing = isSessionActive && !isSessionPaused && (sessionPhase === 'study' || sessionPhase === 'focus');
-    if (isFocusing && noiseDb > 65) {
+    if (isFocusPhaseActive && effectiveNoiseDb >= 65) {
       const now = Date.now();
       if (now - lastNoiseSpikeTimeRef.current >= 4000) {
         lastNoiseSpikeTimeRef.current = now;
@@ -315,10 +368,10 @@ export const FocusMode = ({
       if (!soundState.isPlaying) {
         audioEngine.playAmbientSound(soundState.soundType, soundState.volume);
         setSoundState((prev) => ({ ...prev, isPlaying: true, autoTriggered: true }));
-        setAutoTriggeredAt(noiseDb);
+        setAutoTriggeredAt(effectiveNoiseDb);
       }
     }
-  }, [isSessionActive, isSessionPaused, sessionPhase, noiseDb, soundState.isPlaying, soundState.soundType, soundState.volume]);
+  }, [isFocusPhaseActive, effectiveNoiseDb, soundState.isPlaying, soundState.soundType, soundState.volume]);
 
   // Format MM:SS for countdown timer
   const formatTime = (totalSec) => {
@@ -694,7 +747,7 @@ export const FocusMode = ({
                 <div className="flex items-center space-x-2">
                   <ShieldAlert className="w-4 h-4 text-amber-400 flex-shrink-0 animate-pulse" />
                   <span>
-                    Sitting too close (&lt;40cm)! Screen will dim 30% in <strong className="text-white text-sm underline">{10 - tooCloseSeconds}s</strong>...
+                    Sitting too close (&lt;30cm)! Screen will dim 30% in <strong className="text-white text-sm underline">{10 - tooCloseSeconds}s</strong>...
                   </span>
                 </div>
                 <div className="flex items-center space-x-2 w-full sm:w-auto">
@@ -938,21 +991,21 @@ export const FocusMode = ({
               <div>
                 <div className="flex items-baseline space-x-1.5">
                   <span className={`text-4xl font-black font-mono tracking-tight transition-colors ${
-                    noiseDb > 70 
+                    effectiveNoiseDb > 70 
                       ? 'text-red-400' 
-                      : noiseDb > 55 
+                      : effectiveNoiseDb > 55 
                       ? 'text-amber-300' 
                       : micEnabled ? 'text-emerald-400' : 'text-slate-500'
                   }`}>
-                    {micEnabled ? noiseDb : '--'}
+                    {isFocusPhaseActive ? effectiveNoiseDb : (micEnabled ? effectiveNoiseDb : '--')}
                   </span>
                   <span className="text-sm font-bold font-mono text-slate-400">dB</span>
                 </div>
                 <div className="text-[11px] font-mono text-slate-400 mt-0.5">
-                  {micEnabled ? (
-                    noiseDb < 50 ? (
+                  {isFocusPhaseActive || micEnabled ? (
+                    effectiveNoiseDb < 50 ? (
                       <span className="text-emerald-400 font-semibold">🟢 Quiet (Ideal Study Environment)</span>
-                    ) : noiseDb <= 70 ? (
+                    ) : effectiveNoiseDb <= 70 ? (
                       <span className="text-amber-400 font-semibold">🟡 Normal (Speech / Office)</span>
                     ) : (
                       <span className="text-red-400 font-semibold">🔴 Loud (Masking Triggered)</span>
@@ -987,9 +1040,9 @@ export const FocusMode = ({
                   >
                     <div
                       className={`w-full rounded-t transition-all duration-75 ${
-                        noiseDb > 70 
+                        effectiveNoiseDb > 70 
                           ? 'bg-gradient-to-t from-amber-500 to-red-500' 
-                          : noiseDb > 55 
+                          : effectiveNoiseDb > 55 
                           ? 'bg-gradient-to-t from-blue-500 to-amber-400' 
                           : 'bg-gradient-to-t from-blue-600 to-emerald-400'
                       }`}
@@ -1009,13 +1062,13 @@ export const FocusMode = ({
               <div className="w-full h-3 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800 relative">
                 <div
                   className={`h-full rounded-full transition-all duration-150 ${
-                    noiseDb > 70
+                    effectiveNoiseDb > 70
                       ? 'bg-red-500'
-                      : noiseDb > 55
+                      : effectiveNoiseDb > 55
                       ? 'bg-amber-400'
                       : 'bg-emerald-400'
                   }`}
-                  style={{ width: `${Math.min(100, ((noiseDb || 0) / 100) * 100)}%` }}
+                  style={{ width: `${Math.min(100, ((effectiveNoiseDb || 0) / 100) * 100)}%` }}
                 />
                 {/* 65dB Limit Line */}
                 <div
