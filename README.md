@@ -76,13 +76,15 @@ The platform operates on a **dual-tiered hybrid architecture**: a high-speed, cl
 
 ### 1. On-Device Edge Vision (<15ms Latency, 100% Client-Side)
 - **Face Landmarker (`face_landmarker.task`)**:
-  - *Framework*: Google MediaPipe Tasks-Vision (executed via WebAssembly + WebGL GPU Delegate).
+  - *Framework*: Google MediaPipe Tasks-Vision (executed via WebAssembly + WebGL GPU Delegate with automatic CPU fallback).
   - *Specification*: Detects 478 3D landmark coordinates, facial transformation matrices, and eyelid blendshapes.
-  - *Core Function*: Solves the 3D Perspective-n-Point (PnP) geometric problem to map 2D pixel observations into physical metric distances (centimeters), while tracking ocular micro-saccade frequencies to detect ciliary muscle strain.
+  - *Core Function*: 
+    1. **Metric Distance & Fatigue Tracking**: Solves the 3D Perspective-n-Point (PnP) geometric problem to map 2D pixel observations into physical metric distances (centimeters), while tracking ocular micro-saccade frequencies to detect ciliary muscle strain.
+    2. **High-Precision Head & Cervical Kinematics (Euler Angles)**: Computes 3-DoF head pose orientation (`Pitch`, `Yaw`, `Roll`) with sub-degree accuracy directly from the 3D facial mesh structure. This powers eyes-free cervical decompression tracking (`neck_up` upward extension, `neck_turn` axial rotation, and `neck_tilt` lateral ear-to-shoulder stretch) that cannot be accurately captured by standard body skeletal models alone.
 - **Pose Landmarker (`pose_landmarker_lite.task`)**:
   - *Framework*: Google MediaPipe Tasks-Vision.
   - *Specification*: Tracks 33 full-body skeletal keypoints in real time.
-  - *Core Function*: Identifies exercise gestures and counts repetitions (Squats, Jumping Jacks, Shoulder Lateral Raises, Arm Crosses) during eyes-free active break periods.
+  - *Core Function*: Identifies exercise gestures and counts repetitions (Overhead Reaches, Chest Hugs, Lateral Raises, Bicep Curls, Shoulder Shrugs, Squats, Planks) during eyes-free active break periods. Combined in real-time with the Face Landmarker for seamless multi-modal whole-body and head biomechanics.
 
 ### 2. Cloud LLM Reasoning (Server-Side)
 - **Google GenAI SDK (`@google/genai`)**:

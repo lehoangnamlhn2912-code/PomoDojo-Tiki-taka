@@ -262,12 +262,24 @@ export const BlindBreak = ({
       return;
     }
 
+    // Lấy danh sách các động tác hợp lệ từ các đáp án của câu hỏi hiện tại
+    // Động tác nào có trong câu hỏi thì mới track, không có thì thôi để tránh clash
+    const allowedPosesForQuestion = currentQuiz?.options
+      ? currentQuiz.options
+          .map((opt) => opt.requiredPose)
+          .filter((p) => p && p !== 'none')
+      : [];
+
     const runPoseLoop = () => {
       if (!isRunning) return;
 
       if (videoRef.current && videoRef.current.readyState >= 2) {
         const video = videoRef.current;
-        const result = poseDetector.detectPose(video);
+        // Truyền allowedPosesForQuestion vào poseDetector để CHỈ track các động tác có trong đáp án của câu hỏi này
+        const result = poseDetector.detectPose(
+          video,
+          allowedPosesForQuestion.length > 0 ? allowedPosesForQuestion : null
+        );
 
         if (poseDetector.isModelLoaded && !isPoseModelReady) {
           setIsPoseModelReady(true);
@@ -315,11 +327,56 @@ export const BlindBreak = ({
               }
             });
           }
+
+          // Draw Face Mesh key points if detected (forehead, nose tip, chin, ears, eyes)
+          if (result.detected && result.faceLandmarks) {
+            const faceKeypoints = [1, 152, 10, 168, 33, 263, 61, 291]; // Nose, chin, forehead, glabella, eye corners, mouth
+            faceKeypoints.forEach((idx) => {
+              const fp = result.faceLandmarks[idx];
+              if (fp) {
+                ctx.beginPath();
+                ctx.arc(fp.x * canvas.width, fp.y * canvas.height, 3.5, 0, 2 * Math.PI);
+                ctx.fillStyle = '#38bdf8'; // Cyan / Sky blue
+                ctx.fill();
+              }
+            });
+          }
+
+          // Visual indicator for Ceiling Look Neck Extension
+          if (result.detected && result.metrics?.ceilingHold) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(14, 165, 233, 0.25)';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.5;
+            const bannerWidth = Math.min(270, canvas.width - 24);
+            const bannerX = (canvas.width - bannerWidth) / 2;
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(bannerX, 10, bannerWidth, 32, 6);
+            } else {
+              ctx.rect(bannerX, 10, bannerWidth, 32);
+            }
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('⬆️ Looking Up: Neck Stretch Holding...', canvas.width / 2, 30);
+            ctx.restore();
+          }
         }
 
         // Check if recognized exercise matches any option in the current question
         if (!isAnswerRevealed && result.detected && result.recognizedExercise && currentQuiz?.options) {
-          setDetectedPoseName(result.exerciseName || 'Pose detected');
+          const elbowFeedback = result.metrics?.elbowAngle !== undefined
+            ? ` [Góc khuỷu: ${result.metrics.elbowAngle}°]`
+            : '';
+          const poseTelemetry = (result.metrics?.ceilingHold
+            ? ' (Ceiling Look Hold)'
+            : (result.headPose 
+                ? ` (${result.headPose.pitch > 0 ? '+' : ''}${result.headPose.pitch}° pitch, ${result.headPose.yaw}° yaw)`
+                : '')) + elbowFeedback;
+          setDetectedPoseName((result.exerciseName || 'Pose detected') + poseTelemetry);
           setDetectedExercise(result.recognizedExercise);
 
           const matchedOpt = currentQuiz.options.find(
@@ -333,13 +390,13 @@ export const BlindBreak = ({
             const now = performance.now();
             if (poseHoldTrackerRef.current.pose !== matchedOpt.id) {
               poseHoldTrackerRef.current = { pose: matchedOpt.id, startTime: now };
-              setPoseHoldProgress(10);
+              setPoseHoldProgress(15);
             } else {
               const elapsed = now - poseHoldTrackerRef.current.startTime;
-              const progress = Math.min(100, Math.round((elapsed / 1200) * 100));
+              const progress = Math.min(100, Math.round((elapsed / 900) * 100));
               setPoseHoldProgress(progress);
 
-              if (elapsed >= 1200) {
+              if (elapsed >= 900) {
                 handleOptionSelect(matchedOpt);
               }
             }
@@ -348,9 +405,26 @@ export const BlindBreak = ({
             setPoseHoldProgress(0);
           }
         } else if (!isAnswerRevealed) {
-          setDetectedPoseName(
-            result.detected ? 'Analyzing motion...' : 'Step back so camera sees your upper body'
-          );
+          if (result.detected) {
+            const elbowFeedback = result.metrics?.elbowAngle !== undefined
+              ? ` [Góc khuỷu: ${result.metrics.elbowAngle}°]`
+              : '';
+            if (result.headPose && !allowedPosesForQuestion.some(p => p === 'hammer_curl' || p === 'squat')) {
+              setDetectedPoseName(`Tracking head: P ${result.headPose.pitch > 0 ? '+' : ''}${result.headPose.pitch}°, Y ${result.headPose.yaw}°, R ${result.headPose.roll}°${elbowFeedback}`);
+            } else if (result.exerciseName) {
+              setDetectedPoseName(result.exerciseName + elbowFeedback);
+            } else if (allowedPosesForQuestion.length > 0) {
+              const poseNames = allowedPosesForQuestion.map(p => POSE_LABELS[p] || p).join(' / ');
+              const handHint = (allowedPosesForQuestion.some(p => p === 'hammer_curl' || p === 'squat') && result.metrics?.elbowAngle === undefined)
+                ? ' (Đưa tay vào cam để đo góc)'
+                : '';
+              setDetectedPoseName(`Đang chờ động tác đáp án: ${poseNames}${elbowFeedback}${handHint}`);
+            } else {
+              setDetectedPoseName('Analyzing motion...');
+            }
+          } else {
+            setDetectedPoseName('Position face or upper body in camera frame');
+          }
           poseHoldTrackerRef.current = { pose: null, startTime: 0 };
           setPoseHoldProgress(0);
         }

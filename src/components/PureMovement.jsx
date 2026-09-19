@@ -169,7 +169,7 @@ export const PureMovement = ({
 
       if (videoRef.current && videoRef.current.readyState >= 2) {
         const video = videoRef.current;
-        const result = poseDetector.detectPose(video);
+        const result = poseDetector.detectPose(video, currentExercise?.id);
 
         // Draw Skeleton onto canvas overlay
         if (canvasRef.current) {
@@ -213,22 +213,65 @@ export const PureMovement = ({
               }
             });
           }
+
+          // Draw Face Mesh key points if detected (forehead, nose tip, chin, ears, eyes)
+          if (result.detected && result.faceLandmarks) {
+            const faceKeypoints = [1, 152, 10, 168, 33, 263, 61, 291];
+            faceKeypoints.forEach((idx) => {
+              const fp = result.faceLandmarks[idx];
+              if (fp) {
+                ctx.beginPath();
+                ctx.arc(fp.x * canvas.width, fp.y * canvas.height, 3.5, 0, 2 * Math.PI);
+                ctx.fillStyle = '#38bdf8'; // Sky blue
+                ctx.fill();
+              }
+            });
+          }
+
+          // Visual indicator for Ceiling Look Neck Extension
+          if (result.detected && result.metrics?.ceilingHold) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(14, 165, 233, 0.25)';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.5;
+            const bannerWidth = Math.min(270, canvas.width - 24);
+            const bannerX = (canvas.width - bannerWidth) / 2;
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(bannerX, 10, bannerWidth, 32, 6);
+            } else {
+              ctx.rect(bannerX, 10, bannerWidth, 32);
+            }
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('⬆️ Looking Up: Neck Stretch Holding...', canvas.width / 2, 30);
+            ctx.restore();
+          }
         }
 
         // Check if recognized exercise matches current exercise
         if (result.detected && result.recognizedExercise === currentExercise.id) {
-          setDetectedPoseName(`${currentExercise.name} detected! Holding...`);
+          const elbowStr = (result.metrics?.elbowAngle !== undefined) ? ` [Góc khuỷu: ${result.metrics.elbowAngle}°]` : '';
+          const poseTelemetry = result.metrics?.ceilingHold
+            ? ' (Ceiling Look Hold)'
+            : (result.headPose && !result.metrics?.elbowAngle
+                ? ` (${result.headPose.pitch > 0 ? '+' : ''}${result.headPose.pitch}° pitch, ${result.headPose.yaw}° yaw)`
+                : elbowStr);
+          setDetectedPoseName(`${currentExercise.name} detected!${poseTelemetry} Holding...`);
           const now = performance.now();
           if (poseHoldTrackerRef.current.pose !== currentExercise.id) {
             poseHoldTrackerRef.current = { pose: currentExercise.id, startTime: now };
-            setPoseHoldProgress(10);
+            setPoseHoldProgress(15);
           } else {
             const elapsed = now - poseHoldTrackerRef.current.startTime;
-            const progress = Math.min(100, Math.round((elapsed / 1500) * 100));
+            const progress = Math.min(100, Math.round((elapsed / 1000) * 100));
             setPoseHoldProgress(progress);
 
-            if (elapsed >= 1500) {
-              // Successfully held for 1.5s!
+            if (elapsed >= 1000) {
+              // Successfully held for 1.0s!
               audioEngine.playSuccessSound();
               setRepsCompleted((r) => r + 1);
               setPoseHoldProgress(0);
@@ -245,9 +288,23 @@ export const PureMovement = ({
           poseHoldTrackerRef.current = { pose: null, startTime: 0 };
           setPoseHoldProgress(0);
           if (result.detected) {
-            setDetectedPoseName(result.exerciseName || 'Analyzing movement...');
+            if (currentExercise.id === 'hammer_curl') {
+              const elbowStr = (result.metrics?.elbowAngle !== undefined) 
+                ? ` [Góc khuỷu hiện tại: ${result.metrics.elbowAngle}°, cần > 50°]` 
+                : '';
+              setDetectedPoseName(`Đang chờ: ${currentExercise.name}${elbowStr}`);
+            } else if (currentExercise.id === 'squat') {
+              const elbowStr = (result.metrics?.elbowAngle !== undefined) 
+                ? ` [Góc khuỷu hiện tại: ${result.metrics.elbowAngle}°, cần ≤ 50°]` 
+                : '';
+              setDetectedPoseName(`Đang chờ: ${currentExercise.name}${elbowStr}`);
+            } else if (result.recognizedExercise && result.exerciseName) {
+              setDetectedPoseName(`Nhận diện: ${result.exerciseName}`);
+            } else {
+              setDetectedPoseName(`Đang chờ: ${currentExercise.name}...`);
+            }
           } else {
-            setDetectedPoseName('Step back so the camera can see your full upper body');
+            setDetectedPoseName('Position face or upper body in camera frame');
           }
         }
       }
