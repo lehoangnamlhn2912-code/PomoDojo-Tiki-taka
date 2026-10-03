@@ -127,8 +127,10 @@ export const BlindBreak = ({
   // Modals
   const [isCreateSetModalOpen, setIsCreateSetModalOpen] = useState(false);
   const [isManageSetsOpen, setIsManageSetsOpen] = useState(false);
+  const [previewSetId, setPreviewSetId] = useState(null);
 
   // Set Builder State
+  const [builderSetId, setBuilderSetId] = useState(null);
   const [builderSetTitle, setBuilderSetTitle] = useState('');
   const [builderQuestions, setBuilderQuestions] = useState([]);
   const [builderActiveQIndex, setBuilderActiveQIndex] = useState(0);
@@ -167,9 +169,13 @@ export const BlindBreak = ({
     setQuestionSets(newSets);
     try {
       localStorage.setItem(QUESTION_SETS_STORAGE_KEY, JSON.stringify(newSets));
-      if (newActiveId) {
+      if (newActiveId !== null) {
         setActiveSetId(newActiveId);
-        localStorage.setItem(ACTIVE_SET_ID_STORAGE_KEY, newActiveId);
+        if (newActiveId) {
+          localStorage.setItem(ACTIVE_SET_ID_STORAGE_KEY, newActiveId);
+        } else {
+          localStorage.removeItem(ACTIVE_SET_ID_STORAGE_KEY);
+        }
       }
     } catch (e) {
       console.warn('Failed to save question sets:', e);
@@ -541,11 +547,27 @@ export const BlindBreak = ({
   // ----------------------------------------------------
   const handleOpenCreateSetModal = (startSessionAfterSave = false) => {
     startSessionAfterSetCreationRef.current = startSessionAfterSave;
+    setBuilderSetId(null);
     setBuilderSetTitle(`Question Set ${questionSets.length + 1}`);
     setBuilderQuestions([]); // Start with 0 questions -> clean square + in center
     setBuilderActiveQIndex(0);
     setBuilderStep('question');
     setBuilderError('');
+    setIsCreateSetModalOpen(true);
+  };
+
+  const handleOpenEditSetModal = (set) => {
+    startSessionAfterSetCreationRef.current = false;
+    setBuilderSetId(set.id);
+    setBuilderSetTitle(set.title || '');
+    setBuilderQuestions((set.questions || []).map((question) => ({
+      ...question,
+      options: (question.options || []).map((option) => ({ ...option }))
+    })));
+    setBuilderActiveQIndex(0);
+    setBuilderStep(set.questions?.[0]?.question?.trim() ? 'answers' : 'question');
+    setBuilderError('');
+    setIsManageSetsOpen(false);
     setIsCreateSetModalOpen(true);
   };
 
@@ -736,37 +758,46 @@ export const BlindBreak = ({
 
   // Delete a question from the builder
   const handleDeleteQuestionFromBuilder = (qIdx) => {
-    if (builderQuestions.length <= 1) {
-      setBuilderQuestions([]);
-      setBuilderActiveQIndex(0);
-      setBuilderStep('question');
-      return;
-    }
     const filtered = builderQuestions.filter((_, idx) => idx !== qIdx);
+    const nextIndex = filtered.length === 0
+      ? 0
+      : qIdx < builderActiveQIndex
+        ? builderActiveQIndex - 1
+        : Math.min(builderActiveQIndex, filtered.length - 1);
     setBuilderQuestions(filtered);
-    setBuilderActiveQIndex(Math.min(builderActiveQIndex, filtered.length - 1));
-    setBuilderStep('answers');
+    setBuilderActiveQIndex(nextIndex);
+    setBuilderStep(filtered[nextIndex]?.question?.trim() ? 'answers' : 'question');
+    setBuilderError('');
   };
 
   // Save the complete Question Set
   const handleSaveQuestionSet = () => {
-    if (builderQuestions.length === 0) {
+    if (builderQuestions.length === 0 && !builderSetId) {
       setBuilderError('Please add at least one question to this set.');
       return;
     }
 
-    if (!validateActiveQuestion()) return;
+    if (builderQuestions.length > 0 && !validateActiveQuestion()) return;
 
-    const newSetId = `set_${Date.now()}`;
-    const newSet = {
-      id: newSetId,
+    const existingSet = questionSets.find((set) => set.id === builderSetId);
+    const savedSetId = builderSetId || `set_${Date.now()}`;
+    const savedSet = {
+      ...existingSet,
+      id: savedSetId,
       title: builderSetTitle.trim() || `Question Set ${questionSets.length + 1}`,
-      createdAt: Date.now(),
+      createdAt: existingSet?.createdAt || Date.now(),
+      updatedAt: Date.now(),
       questions: builderQuestions
     };
 
-    const updatedSets = [...questionSets, newSet];
-    saveQuestionSets(updatedSets, newSetId);
+    const updatedSets = existingSet
+      ? questionSets.map((set) => set.id === savedSetId ? savedSet : set)
+      : [...questionSets, savedSet];
+    if (existingSet) {
+      saveQuestionSets(updatedSets);
+    } else {
+      saveQuestionSets(updatedSets, savedSetId);
+    }
 
     // Reset local navigation to first question of new set
     setCurrentQuizIndex(0);
@@ -783,13 +814,9 @@ export const BlindBreak = ({
   };
 
   const handleDeleteSet = (setId) => {
-    if (questionSets.length <= 1) {
-      alert('You must keep at least 1 question set.');
-      return;
-    }
     const filtered = questionSets.filter((s) => s.id !== setId);
-    const nextActive = filtered[0].id;
-    saveQuestionSets(filtered, nextActive);
+    const nextActiveId = activeSetId === setId ? filtered[0]?.id || null : activeSetId;
+    saveQuestionSets(filtered, nextActiveId);
     setCurrentQuizIndex(0);
     setSelectedOption(null);
     setIsAnswerRevealed(false);
@@ -1348,9 +1375,13 @@ export const BlindBreak = ({
                   <FolderPlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Create New Question Set</h3>
+                  <h3 className="text-base font-bold text-white">
+                    {builderSetId ? 'Edit Question Set' : 'Create New Question Set'}
+                  </h3>
                   <p className="text-xs text-slate-400">
-                    Build a set of questions with custom answers and movement poses.
+                    {builderSetId
+                      ? 'Update questions, answers, and movement poses in this set.'
+                      : 'Build a set of questions with custom answers and movement poses.'}
                   </p>
                 </div>
               </div>
@@ -1430,7 +1461,7 @@ export const BlindBreak = ({
                         }`}
                       >
                         <span>Question {qIdx + 1}</span>
-                        {builderQuestions.length > 1 && (
+                        {(
                           <span
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1610,13 +1641,13 @@ export const BlindBreak = ({
                       type="button"
                       onClick={handleAddNextQuestionOnRight}
                       className="w-full md:w-28 p-4 md:py-8 bg-indigo-950/40 hover:bg-indigo-900/60 border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 text-indigo-300 hover:text-white rounded-2xl flex md:flex-col items-center justify-center gap-2 transition cursor-pointer group shadow-lg"
-                      title="Add next question to this set"
+                      title={builderActiveQIndex < builderQuestions.length - 1 ? 'Go to the next question' : 'Add a question to this set'}
                     >
                       <div className="w-10 h-10 rounded-xl bg-indigo-600/30 group-hover:bg-indigo-600/50 border border-indigo-400/40 flex items-center justify-center text-white">
                         <Plus className="w-5 h-5 group-hover:scale-125 transition" />
                       </div>
                       <span className="text-xs font-bold text-center">
-                        Next Question
+                        {builderActiveQIndex < builderQuestions.length - 1 ? 'Next Question' : 'Add Question'}
                       </span>
                     </button>
                   </div>
@@ -1643,10 +1674,10 @@ export const BlindBreak = ({
                 <button
                   type="button"
                   onClick={handleSaveQuestionSet}
-                  disabled={builderQuestions.length === 0}
+                  disabled={builderQuestions.length === 0 && !builderSetId}
                   className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  Save Question Set
+                  {builderSetId ? 'Save Changes' : 'Save Question Set'}
                 </button>
               </div>
             </div>
@@ -1685,28 +1716,29 @@ export const BlindBreak = ({
                 return (
                   <div
                     key={set.id}
-                    className={`p-4 rounded-2xl border transition flex items-center justify-between ${
+                    className={`p-4 rounded-2xl border transition ${
                       isActive
                         ? 'bg-indigo-950/40 border-indigo-500/80 ring-1 ring-indigo-500/40'
                         : 'bg-slate-950 border-slate-800 hover:border-slate-700'
                     }`}
                   >
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <h4 className="text-sm font-bold text-white">{set.title}</h4>
-                        {isActive && (
-                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold rounded">
-                            Active
-                          </span>
-                        )}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="text-sm font-bold text-white truncate">{set.title}</h4>
+                          {isActive && (
+                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold rounded flex-shrink-0">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {set.questions?.length || 0} questions
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {set.questions?.length || 0} questions
-                      </p>
-                    </div>
 
-                    <div className="flex items-center space-x-2">
-                      {!isActive && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {!isActive && (
                         <button
                           onClick={() => {
                             handleSelectSet(set.id);
@@ -1716,9 +1748,24 @@ export const BlindBreak = ({
                         >
                           Select Set
                         </button>
-                      )}
+                        )}
 
-                      {questionSets.length > 1 && (
+                        <button
+                          onClick={() => setPreviewSetId(previewSetId === set.id ? null : set.id)}
+                          className="p-2 text-slate-400 hover:text-indigo-300 hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                          title={previewSetId === set.id ? 'Hide questions' : 'Preview questions'}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => handleOpenEditSetModal(set)}
+                          className="p-2 text-slate-400 hover:text-indigo-300 hover:bg-slate-800 rounded-xl transition cursor-pointer"
+                          title="Edit question set"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+
                         <button
                           onClick={() => handleDeleteSet(set.id)}
                           className="p-2 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition cursor-pointer"
@@ -1726,8 +1773,35 @@ export const BlindBreak = ({
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
+                      </div>
                     </div>
+
+                    {previewSetId === set.id && (
+                      <div className="mt-3 space-y-3 border-t border-slate-800 pt-3">
+                        {set.questions?.length ? set.questions.map((question, questionIndex) => (
+                          <div key={question.id || questionIndex} className="rounded-xl bg-slate-950/80 p-3">
+                            <p className="text-xs font-semibold text-slate-200">
+                              <span className="text-indigo-300">Q{questionIndex + 1}.</span>{' '}
+                              {question.question || 'Untitled question'}
+                            </p>
+                            <ul className="mt-2 space-y-1">
+                              {(question.options || []).map((option, optionIndex) => (
+                                <li
+                                  key={option.id || optionIndex}
+                                  className={`text-[11px] ${option.isCorrect ? 'text-emerald-300' : 'text-slate-400'}`}
+                                >
+                                  {option.letter || String.fromCharCode(65 + optionIndex)}.{' '}
+                                  {option.text || 'Empty answer'}
+                                  {option.isCorrect ? ' (Correct)' : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )) : (
+                          <p className="text-xs text-slate-500">No questions in this set.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

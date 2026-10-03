@@ -124,7 +124,7 @@ export default function App() {
 
   // Start Focus Session: Begins with 30s Bio-Reset for Cycle 1
   const handleStartSession = () => {
-    if (getStoredQuestionSets().length === 0) {
+    if (!getStoredQuestionSets().some((set) => set.questions?.length > 0)) {
       setActiveTab('blind_break');
       setIsNoQuestionSetPromptOpen(true);
       return;
