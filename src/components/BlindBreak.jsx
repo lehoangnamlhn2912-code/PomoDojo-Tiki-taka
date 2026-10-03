@@ -64,7 +64,7 @@ export const AVAILABLE_POSES = [
 const DEFAULT_QUESTION_SETS = [];
 
 // Load question sets from localStorage, excluding legacy default sets
-const getStoredQuestionSets = () => {
+export const getStoredQuestionSets = () => {
   try {
     const saved = localStorage.getItem(QUESTION_SETS_STORAGE_KEY);
     if (saved) {
@@ -108,7 +108,11 @@ export const BlindBreak = ({
   totalCycles = 4,
   currentCycle = 1,
   onChangeBreakStyle,
-  onStopSessionEarly
+  onStopSessionEarly,
+  isNoQuestionSetPromptOpen = false,
+  onDismissNoQuestionSetPrompt,
+  onCancelNoQuestionSetPrompt,
+  onStartSessionAfterQuestionSetCreated
 }) => {
   // Question Sets State
   const [questionSets, setQuestionSets] = useState(getStoredQuestionSets);
@@ -130,6 +134,7 @@ export const BlindBreak = ({
   const [builderActiveQIndex, setBuilderActiveQIndex] = useState(0);
   const [builderStep, setBuilderStep] = useState('question'); // 'question' | 'answers'
   const [builderError, setBuilderError] = useState('');
+  const startSessionAfterSetCreationRef = useRef(false);
 
   // AI Pose Detection States
   const [detectedPoseName, setDetectedPoseName] = useState('Scanning body pose...');
@@ -534,7 +539,8 @@ export const BlindBreak = ({
   // ----------------------------------------------------
   // QUESTION SET CREATOR LOGIC (Prompt-Free, Square + Box, Right + for Next Question)
   // ----------------------------------------------------
-  const handleOpenCreateSetModal = () => {
+  const handleOpenCreateSetModal = (startSessionAfterSave = false) => {
+    startSessionAfterSetCreationRef.current = startSessionAfterSave;
     setBuilderSetTitle(`Question Set ${questionSets.length + 1}`);
     setBuilderQuestions([]); // Start with 0 questions -> clean square + in center
     setBuilderActiveQIndex(0);
@@ -770,6 +776,10 @@ export const BlindBreak = ({
     setPoseHoldProgress(0);
 
     setIsCreateSetModalOpen(false);
+    if (startSessionAfterSetCreationRef.current) {
+      startSessionAfterSetCreationRef.current = false;
+      onStartSessionAfterQuestionSetCreated?.();
+    }
   };
 
   const handleDeleteSet = (setId) => {
@@ -1280,6 +1290,49 @@ export const BlindBreak = ({
             </div>
           </div>
         </>
+      )}
+
+      {/* ========================================================================= */}
+      {/* NO QUESTION SET PROMPT */}
+      {/* ========================================================================= */}
+      {isNoQuestionSetPromptOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="no-question-set-title"
+            className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl"
+          >
+            <div className="space-y-2">
+              <h3 id="no-question-set-title" className="text-lg font-bold text-white">
+                No Question Set
+              </h3>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                You don't have any question sets yet. Would you like to create one now?
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={onCancelNoQuestionSetPrompt}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDismissNoQuestionSetPrompt();
+                  handleOpenCreateSetModal(true);
+                }}
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition cursor-pointer"
+              >
+                Yes, Create One
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ========================================================================= */}

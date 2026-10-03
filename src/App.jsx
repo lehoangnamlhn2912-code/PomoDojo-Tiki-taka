@@ -3,7 +3,7 @@ import { Header } from './components/Header.jsx';
 import { Navigation } from './components/Navigation.jsx';
 import { BioReset } from './components/BioReset.jsx';
 import { FocusMode } from './components/FocusMode.jsx';
-import { BlindBreak } from './components/BlindBreak.jsx';
+import { BlindBreak, getStoredQuestionSets } from './components/BlindBreak.jsx';
 import { PureMovement } from './components/PureMovement.jsx';
 import { VisualRestOverlay } from './components/VisualRestOverlay.jsx';
 import { BreakChoiceModal } from './components/BreakChoiceModal.jsx';
@@ -45,6 +45,7 @@ export default function App() {
   const [isSessionPaused, setIsSessionPaused] = useState(false);
   const [sessionPhase, setSessionPhase] = useState('idle'); // 'idle' | 'bio_reset' | 'study' | 'break' | 'completed'
   const [currentCycle, setCurrentCycle] = useState(1); // 1-indexed: 1, 2, ..., totalCycles
+  const [isNoQuestionSetPromptOpen, setIsNoQuestionSetPromptOpen] = useState(false);
 
   // Break Mode Choice: 'blind_break' | 'pure_movement' | 'visual_rest' | null
   const [breakStyle, setBreakStyle] = useState(null);
@@ -123,6 +124,12 @@ export default function App() {
 
   // Start Focus Session: Begins with 30s Bio-Reset for Cycle 1
   const handleStartSession = () => {
+    if (getStoredQuestionSets().length === 0) {
+      setActiveTab('blind_break');
+      setIsNoQuestionSetPromptOpen(true);
+      return;
+    }
+
     setIsSessionActive(true);
     setIsSessionPaused(false);
     setCurrentCycle(1);
@@ -339,6 +346,13 @@ export default function App() {
             currentCycle={currentCycle}
             onChangeBreakStyle={() => setIsBreakChoiceOpen(true)}
             onStopSessionEarly={handleStopSessionEarly}
+            isNoQuestionSetPromptOpen={isNoQuestionSetPromptOpen}
+            onDismissNoQuestionSetPrompt={() => setIsNoQuestionSetPromptOpen(false)}
+            onCancelNoQuestionSetPrompt={() => {
+              setIsNoQuestionSetPromptOpen(false);
+              setActiveTab('focus');
+            }}
+            onStartSessionAfterQuestionSetCreated={handleStartSession}
           />
         )}
 
