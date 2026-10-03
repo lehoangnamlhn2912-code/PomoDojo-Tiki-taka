@@ -89,7 +89,6 @@ export const FocusMode = ({
   // Audio Spectrum Frequency Data for Real Noise Meter Visualizer
   const [freqBars, setFreqBars] = useState(new Array(16).fill(10));
   const [peakNoiseDb, setPeakNoiseDb] = useState(0);
-  const [simulatedNoiseDb, setSimulatedNoiseDb] = useState(null);
 
   // Video element ref for Real Physical WebCam
   const videoRef = useRef(null);
@@ -112,11 +111,6 @@ export const FocusMode = ({
 
   const latestLookingDownRef = useRef(eyeData.pose?.isLookingDown);
   latestLookingDownRef.current = eyeData.pose?.isLookingDown;
-
-  const latestMeasuredNoiseDbRef = useRef(noiseDb);
-  latestMeasuredNoiseDbRef.current = noiseDb;
-
-  const focusNoiseRampDoneRef = useRef(false);
 
   // Sync eye distance cm estimate to parent App throttled (no 60fps re-render loops)
   useEffect(() => {
@@ -311,49 +305,7 @@ export const FocusMode = ({
   const isFocusPhaseActive =
     isFocusPhase && !isSessionPaused;
 
-  useEffect(() => {
-    let rampInterval;
-
-    if (!isFocusPhase) {
-      focusNoiseRampDoneRef.current = false;
-      setSimulatedNoiseDb(null);
-      return;
-    }
-
-    if (!isFocusPhaseActive || focusNoiseRampDoneRef.current) {
-      return;
-    }
-
-    const startedAt = Date.now();
-    setSimulatedNoiseDb(40);
-
-    rampInterval = setInterval(() => {
-      const elapsed = Date.now() - startedAt;
-
-      if (elapsed <= 5000) {
-        const progress = elapsed / 5000;
-        setSimulatedNoiseDb(Math.round(40 + (65 - 40) * progress));
-        return;
-      }
-
-      if (elapsed <= 8000) {
-        const progress = (elapsed - 5000) / 3000;
-        const realNoiseDb = latestMeasuredNoiseDbRef.current ?? 0;
-        setSimulatedNoiseDb(Math.round(65 + (realNoiseDb - 65) * progress));
-        return;
-      }
-
-      focusNoiseRampDoneRef.current = true;
-      setSimulatedNoiseDb(null);
-      clearInterval(rampInterval);
-    }, 100);
-
-    return () => {
-      if (rampInterval) clearInterval(rampInterval);
-    };
-  }, [isFocusPhase, isFocusPhaseActive]);
-
-  const effectiveNoiseDb = simulatedNoiseDb ?? noiseDb;
+  const effectiveNoiseDb = Math.round((noiseDb ?? 0) + 13.5);
 
   // Auto-trigger Acoustic Noise Masking if ambient noise reaches 65dB during focus/study phase
   const lastNoiseSpikeTimeRef = useRef(0);
